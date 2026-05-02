@@ -377,6 +377,10 @@ using UnityEngine.InputSystem;
                 // Если стамины не хватило — принудительно переводим в обычный бег
                 StopSprinting();
             }
+            else
+            {
+                _stats.ConsumeSprintNeeds(Time.deltaTime);
+            }
         }
     }
 
@@ -413,6 +417,8 @@ using UnityEngine.InputSystem;
                 if (_stats == null || _stats.UseStamina(_stats.jumpCost))
                 {
                     _verticalVelocity = Mathf.Sqrt(JumpHeight * -2f * Gravity);
+
+                    _stats?.ConsumeJumpNeeds();
 
                     if (_hasAnimator)
                     {

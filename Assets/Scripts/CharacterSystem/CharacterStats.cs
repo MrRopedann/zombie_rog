@@ -55,6 +55,12 @@ public class CharacterStats : MonoBehaviour
     public float severeNeedRegenDelayMultiplier = 2f;
     public float criticalNeedHealthDrainPerSecond = 2f;
 
+    [Header("Action Need Costs")]
+    public float sprintHungerCostPerSecond = 0.1f;
+    public float sprintThirstCostPerSecond = 0.2f;
+    public float jumpHungerCost = 0.35f;
+    public float jumpThirstCost = 0.5f;
+
     [Header("Основные атрибуты")]
     public BaseStat durability = new BaseStat(5f);   // Стойкость
     public BaseStat agility = new BaseStat(5f);   // Ловкость
@@ -115,8 +121,7 @@ public class CharacterStats : MonoBehaviour
     private void Update()
     {
         // Пассивный расход голода и жажды
-        ChangeHunger(-hungerDecreaseRate * Time.deltaTime);
-        ChangeThirst(-thirstDecreaseRate * Time.deltaTime);
+        ConsumeNeeds(hungerDecreaseRate * Time.deltaTime, thirstDecreaseRate * Time.deltaTime);
 
         HandleCriticalNeedHealthDrain();
         HandleStaminaRegen();
@@ -151,6 +156,50 @@ public class CharacterStats : MonoBehaviour
         ChangeHealth(-criticalNeedHealthDrainPerSecond * Time.deltaTime);
     }
 
+    public void ConsumeSprintNeeds(float deltaTime)
+    {
+        if (deltaTime <= 0f)
+            return;
+
+        ConsumeNeeds(sprintHungerCostPerSecond * deltaTime, sprintThirstCostPerSecond * deltaTime);
+    }
+
+    public void ConsumeJumpNeeds()
+    {
+        ConsumeNeeds(jumpHungerCost, jumpThirstCost);
+    }
+
+    private void ConsumeNeeds(float hungerAmount, float thirstAmount)
+    {
+        bool spendHunger = hungerAmount > 0f;
+        bool spendThirst = thirstAmount > 0f;
+
+        if (!spendHunger && !spendThirst)
+            return;
+
+        if (spendHunger)
+        {
+            currentHunger = Mathf.Clamp(currentHunger - hungerAmount, 0f, MaxHunger);
+        }
+
+        if (spendThirst)
+        {
+            currentThirst = Mathf.Clamp(currentThirst - thirstAmount, 0f, MaxThirst);
+        }
+
+        RefreshNeedPenaltyState();
+
+        if (spendHunger)
+        {
+            OnHungerChanged?.Invoke();
+        }
+
+        if (spendThirst)
+        {
+            OnThirstChanged?.Invoke();
+        }
+    }
+
     public bool UseStamina(float amount)
     {
         if (amount <= 0f)
@@ -160,7 +209,7 @@ public class CharacterStats : MonoBehaviour
             return false;
 
         currentStamina -= amount;
-        currentStamina = Mathf.Clamp(currentStamina, 0f, MaxStamina);
+        currentStamina = Mathf.Clamp(currentStamina, 0f, CurrentStaminaLimit);
 
         lastStaminaUseTime = Time.time;
 
