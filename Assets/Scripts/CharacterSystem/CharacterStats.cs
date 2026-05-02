@@ -3,6 +3,13 @@ using UnityEngine;
 
 public class CharacterStats : MonoBehaviour
 {
+    private enum NeedPenaltyTier
+    {
+        None,
+        Low,
+        Severe,
+        Critical
+    }
     [Header("Идентификация")]
     public int playerID = 0;
     public string playerName = "Ropedann";
@@ -39,6 +46,15 @@ public class CharacterStats : MonoBehaviour
     public float thirstDecreaseRate = 0.1f;
     public float staminaDecreaseRate = 0.5f;
 
+    [Header("Need Penalties")]
+    [Range(0f, 1f)] public float lowNeedThresholdPercent = 0.5f;
+    [Range(0f, 1f)] public float severeNeedThresholdPercent = 0.25f;
+    [Range(0f, 1f)] public float criticalNeedThresholdPercent = 0.05f;
+    [Range(0f, 1f)] public float lowNeedStaminaMultiplier = 0.75f;
+    [Range(0f, 1f)] public float severeNeedStaminaMultiplier = 0.5f;
+    public float severeNeedRegenDelayMultiplier = 2f;
+    public float criticalNeedHealthDrainPerSecond = 2f;
+
     [Header("Основные атрибуты")]
     public BaseStat durability = new BaseStat(5f);   // Стойкость
     public BaseStat agility = new BaseStat(5f);   // Ловкость
@@ -57,6 +73,7 @@ public class CharacterStats : MonoBehaviour
     private bool isInitialized = false;
     private float lastStaminaUseTime;
     private float staminaExhaustionLockEndTime;
+    private NeedPenaltyTier currentNeedPenaltyTier = NeedPenaltyTier.None;
 
     // Производные максимальные значения
     public float MaxHealth { get; private set; }
@@ -90,6 +107,8 @@ public class CharacterStats : MonoBehaviour
             SetFullStats();
             isInitialized = true;
         }
+
+        RefreshNeedPenaltyState(force: true);
     }
 
     private void Update()
@@ -98,16 +117,17 @@ public class CharacterStats : MonoBehaviour
         ChangeHunger(-hungerDecreaseRate * Time.deltaTime);
         ChangeThirst(-thirstDecreaseRate * Time.deltaTime);
 
+        HandleCriticalNeedHealthDrain();
         HandleStaminaRegen();
     }
 
     private void HandleStaminaRegen()
     {
-        if (AreStaminaActionsLocked)
+        if (AreStaminaActionsLocked || IsStaminaRegenBlockedByNeeds())
             return;
 
         // задержка после использования
-        if (Time.time < lastStaminaUseTime + staminaRegenDelay)
+        if (Time.time < lastStaminaUseTime + GetEffectiveStaminaRegenDelay())
             return;
 
         if (currentStamina >= MaxStamina)
@@ -120,6 +140,14 @@ public class CharacterStats : MonoBehaviour
 
         currentStamina = Mathf.Clamp(currentStamina + regen, 0f, MaxStamina);
         OnStaminaChanged?.Invoke();
+    }
+
+    private void HandleCriticalNeedHealthDrain()
+    {
+        if (currentNeedPenaltyTier != NeedPenaltyTier.Critical || criticalNeedHealthDrainPerSecond <= 0f)
+            return;
+
+        ChangeHealth(-criticalNeedHealthDrainPerSecond * Time.deltaTime);
     }
 
     public bool UseStamina(float amount)
@@ -174,7 +202,7 @@ public class CharacterStats : MonoBehaviour
         MaxArmor = baseMaxArmor;
         MaxHunger = baseMaxHunger;
         MaxThirst = baseMaxThirst;
-        MaxStamina = baseMaxStamina;
+        MaxStamina = baseMaxStamina * GetStaminaMultiplierForCurrentNeeds();
         MaxWeight = baseMaxWeight + strength.Value * strengthWeightFactor;
 
         // Ограничиваем текущие значения новыми максимумами
@@ -185,6 +213,7 @@ public class CharacterStats : MonoBehaviour
 
         OnStatsRecalculated?.Invoke();
         OnHealthChanged?.Invoke();
+        OnStaminaChanged?.Invoke();
     }
 
     // ====================== МЕТОДЫ ИЗМЕНЕНИЯ ======================
@@ -198,12 +227,14 @@ public class CharacterStats : MonoBehaviour
     public void ChangeHunger(float amount)
     {
         currentHunger = Mathf.Clamp(currentHunger + amount, 0f, MaxHunger);
+        RefreshNeedPenaltyState();
         OnHungerChanged?.Invoke();
     }
 
     public void ChangeThirst(float amount)
     {
         currentThirst = Mathf.Clamp(currentThirst + amount, 0f, MaxThirst);
+        RefreshNeedPenaltyState();
         OnThirstChanged?.Invoke();
     }
 
@@ -234,5 +265,58 @@ public class CharacterStats : MonoBehaviour
             OnLevelChanged?.Invoke();
             // Здесь можно добавить вызов CharacterProgression.GainLevel()
         }
+    }
+
+    private void RefreshNeedPenaltyState(bool force = false)
+    {
+        NeedPenaltyTier newTier = GetNeedPenaltyTier();
+
+        if (!force && newTier == currentNeedPenaltyTier)
+            return;
+
+        currentNeedPenaltyTier = newTier;
+        RecalculateAllStats();
+    }
+
+    private NeedPenaltyTier GetNeedPenaltyTier()
+    {
+        float worstNeedPercent = Mathf.Min(HungerPercent, ThirstPercent);
+
+        if (worstNeedPercent <= criticalNeedThresholdPercent)
+            return NeedPenaltyTier.Critical;
+
+        if (worstNeedPercent <= severeNeedThresholdPercent)
+            return NeedPenaltyTier.Severe;
+
+        if (worstNeedPercent <= lowNeedThresholdPercent)
+            return NeedPenaltyTier.Low;
+
+        return NeedPenaltyTier.None;
+    }
+
+    private float GetStaminaMultiplierForCurrentNeeds()
+    {
+        return currentNeedPenaltyTier switch
+        {
+            NeedPenaltyTier.Low => lowNeedStaminaMultiplier,
+            NeedPenaltyTier.Severe => severeNeedStaminaMultiplier,
+            NeedPenaltyTier.Critical => severeNeedStaminaMultiplier,
+            _ => 1f
+        };
+    }
+
+    private float GetEffectiveStaminaRegenDelay()
+    {
+        return currentNeedPenaltyTier switch
+        {
+            NeedPenaltyTier.Severe => staminaRegenDelay * severeNeedRegenDelayMultiplier,
+            NeedPenaltyTier.Critical => staminaRegenDelay * severeNeedRegenDelayMultiplier,
+            _ => staminaRegenDelay
+        };
+    }
+
+    private bool IsStaminaRegenBlockedByNeeds()
+    {
+        return currentNeedPenaltyTier == NeedPenaltyTier.Critical;
     }
 }
