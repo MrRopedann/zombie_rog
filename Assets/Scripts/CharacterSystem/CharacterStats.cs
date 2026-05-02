@@ -1,92 +1,210 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class CharacterStats : MonoBehaviour
 {
-    [Header("Основные параметры")]
+    [Header("Идентификация")]
     public int playerID = 0;
     public string playerName = "Ropedann";
 
     [Header("Уровень и опыт")]
     public int playerLevel = 1;
     public int currentExp = 0;
-    public int expToNextLevel = 10;
+    public int expToNextLevel = 100;
 
-    [Header("Основные параметры")]
-    public int currentHealth = 100;
-    public int currentArmor = 100;
-    public int currentHungry = 100;
-    public int currentThirst = 100;
-    public int currentStamina = 100;
+    [Header("Текущие ресурсы")]
+    public float currentHealth = 100f;
+    public float currentArmor = 100f;
+    public float currentHunger = 100f;
+    public float currentThirst = 100f;
+    public float currentStamina = 100f;
 
-    [Header("Максимальное значение (базовые)")]
-    public int baseMaxHealth = 100;
-    public int baseMaxArmor = 100;
-    public int baseMaxHungry = 100;
-    public int baseMaxThirst = 100;
-    public int baseMaxStamina = 100;
+    [Header("Базовые максимальные значения")]
+    public float baseMaxHealth = 100f;
+    public float baseMaxArmor = 100f;
+    public float baseMaxHunger = 100f;
+    public float baseMaxThirst = 100f;
+    public float baseMaxStamina = 100f;
     public float baseMaxWeight = 25f;
 
+    [Header("Стамина логика")]
+    public float staminaRegenRate = 12f;      // восстановление в секунду
+    public float staminaRegenDelay = 1.2f;    // задержка после расхода
+    public float sprintCostPerSecond = 18f;   // расход при беге
+    public float jumpCost = 20f;              // разовый расход прыжка
+
     [Header("Коэффициенты расхода")]
-    public float hungryFactor = 0.05f;
-    public float thirstFactor = 0.1f;
-    public float staminaFactor = 0.5f;
+    public float hungerDecreaseRate = 0.05f;
+    public float thirstDecreaseRate = 0.1f;
+    public float staminaDecreaseRate = 0.5f;
 
-    [Header("Основные атрибуты персонажа")]
-    public BaseStat durability = new BaseStat(5f);
-    public BaseStat agility = new BaseStat(5f);
-    public BaseStat strength = new BaseStat(5f);
-
+    [Header("Основные атрибуты")]
+    public BaseStat durability = new BaseStat(5f);   // Стойкость
+    public BaseStat agility = new BaseStat(5f);   // Ловкость
+    public BaseStat strength = new BaseStat(5f);   // Сила
 
     [Header("Коэффициенты влияния атрибутов")]
     public float durabilityHealthFactor = 20f;
     public float strengthWeightFactor = 5f;
-    public float agilityStaminaFactor = 0.15f;
+    public float agilityStaminaFactor = 0.015f;      // рекомендуется меньшее значение
 
-    [Header("Ссылки на объекты")]
+    [Header("Ссылки")]
     public GameObject characterPrefab;
     public GameObject weaponSlot;
     public GameObject supportWeaponSlot;
 
-    public float maxHealth { get; private set; }
-    public float maxArmor { get; private set; }
-    public float maxHungry { get; private set; }
-    public float maxThirst { get; private set; }
-    public float maxStamina { get; private set; }
-    public float maxWeight { get; private set; }
+    private bool isInitialized = false;
+    private float lastStaminaUseTime;
 
-    public float ProcentHealth => maxHealth > 0 ? (float)currentHealth / maxHealth : 0f;
-    public float ProcentHungry => maxHungry > 0 ? (float)currentHungry / maxHungry : 0f;
-    public float ProcentThirst => maxThirst > 0 ? (float)currentThirst / maxThirst : 0f;
-    public float ProcentStamina => maxStamina > 0 ? (float)currentStamina / maxStamina : 0f;
+    // Производные максимальные значения
+    public float MaxHealth { get; private set; }
+    public float MaxArmor { get; private set; }
+    public float MaxHunger { get; private set; }
+    public float MaxThirst { get; private set; }
+    public float MaxStamina { get; private set; }
+    public float MaxWeight { get; private set; }
+
+    // Процентные значения для HUD
+    public float HealthPercent => MaxHealth > 0 ? currentHealth / MaxHealth : 0f;
+    public float HungerPercent => MaxHunger > 0 ? currentHunger / MaxHunger : 0f;
+    public float ThirstPercent => MaxThirst > 0 ? currentThirst / MaxThirst : 0f;
+    public float StaminaPercent => MaxStamina > 0 ? currentStamina / MaxStamina : 0f;
+
+    // ====================== СОБЫТИЯ ДЛЯ HUD ======================
+    public event Action OnHealthChanged;
+    public event Action OnHungerChanged;
+    public event Action OnThirstChanged;
+    public event Action OnStaminaChanged;
+    public event Action OnStatsRecalculated;   // когда меняются максимумы
+    public event Action OnLevelChanged;
 
     private void Awake()
     {
         RecalculateAllStats();
+
+        if (!isInitialized)
+        {
+            SetFullStats();
+            isInitialized = true;
+        }
     }
 
+    private void Update()
+    {
+        // Пассивный расход голода и жажды
+        ChangeHunger(-hungerDecreaseRate * Time.deltaTime);
+        ChangeThirst(-thirstDecreaseRate * Time.deltaTime);
+
+        HandleStaminaRegen();
+    }
+
+    private void HandleStaminaRegen()
+    {
+        // задержка после использования
+        if (Time.time < lastStaminaUseTime + staminaRegenDelay)
+            return;
+
+        if (currentStamina >= MaxStamina)
+            return;
+
+        // бонус от ловкости
+        float agilityBonus = 1f + agility.Value * agilityStaminaFactor;
+
+        float regen = staminaRegenRate * agilityBonus * Time.deltaTime;
+
+        currentStamina = Mathf.Clamp(currentStamina + regen, 0f, MaxStamina);
+        OnStaminaChanged?.Invoke();
+    }
+
+    public bool UseStamina(float amount)
+    {
+        if (currentStamina < amount)
+            return false;
+
+        currentStamina -= amount;
+        currentStamina = Mathf.Clamp(currentStamina, 0f, MaxStamina);
+
+        lastStaminaUseTime = Time.time;
+        OnStaminaChanged?.Invoke();
+
+        return true;
+    }
+
+    private void SetFullStats()
+    {
+        currentHealth = MaxHealth;
+        currentArmor = MaxArmor;
+        currentHunger = MaxHunger;
+        currentThirst = MaxThirst;
+        currentStamina = MaxStamina;
+
+        OnHealthChanged?.Invoke();
+        OnHungerChanged?.Invoke();
+        OnThirstChanged?.Invoke();
+        OnStaminaChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Пересчёт всех производных характеристик
+    /// </summary>
     public void RecalculateAllStats()
     {
-        maxHealth = baseMaxHealth + durability.Value * durabilityHealthFactor;
-        maxArmor = baseMaxArmor;
-        maxHungry = baseMaxHungry;
-        maxThirst = baseMaxThirst;
-        maxStamina = baseMaxStamina;
-        maxWeight = baseMaxWeight + strength.Value * strengthWeightFactor;
+        MaxHealth = baseMaxHealth + durability.Value * durabilityHealthFactor;
+        MaxArmor = baseMaxArmor;
+        MaxHunger = baseMaxHunger;
+        MaxThirst = baseMaxThirst;
+        MaxStamina = baseMaxStamina;
+        MaxWeight = baseMaxWeight + strength.Value * strengthWeightFactor;
 
-        currentHealth = Mathf.Clamp(currentHealth, 0, (int)maxHealth);
-        currentHungry = Mathf.Clamp(currentHungry, 0, (int)maxHungry);
-        currentThirst = Mathf.Clamp(currentThirst, 0, (int)maxThirst);
-        currentStamina = Mathf.Clamp(currentStamina, 0, (int)maxStamina);
+        // Ограничиваем текущие значения новыми максимумами
+        currentHealth = Mathf.Clamp(currentHealth, 0f, MaxHealth);
+        currentHunger = Mathf.Clamp(currentHunger, 0f, MaxHunger);
+        currentThirst = Mathf.Clamp(currentThirst, 0f, MaxThirst);
+        currentStamina = Mathf.Clamp(currentStamina, 0f, MaxStamina);
+
+        OnStatsRecalculated?.Invoke();
+        OnHealthChanged?.Invoke();
     }
 
-    public void ChangeHealth(int amount) => currentHealth = Mathf.Clamp(currentHealth + amount, 0, (int)maxHealth);
-    public void ChangeHungry(float amount) => currentHungry = Mathf.Clamp((int)(currentHungry + amount), 0, (int)maxHungry);
-    public void ChangeThirst(float amount) => currentThirst = Mathf.Clamp((int)(currentThirst + amount), 0, (int)maxThirst);
-    public void ChangeStamina(float amount) => currentStamina = Mathf.Clamp((int)(currentStamina + amount), 0, (int)maxStamina);
+    // ====================== МЕТОДЫ ИЗМЕНЕНИЯ ======================
 
+    public void ChangeHealth(float amount)
+    {
+        currentHealth = Mathf.Clamp(currentHealth + amount, 0f, MaxHealth);
+        OnHealthChanged?.Invoke();
+    }
 
+    public void ChangeHunger(float amount)
+    {
+        currentHunger = Mathf.Clamp(currentHunger + amount, 0f, MaxHunger);
+        OnHungerChanged?.Invoke();
+    }
 
+    public void ChangeThirst(float amount)
+    {
+        currentThirst = Mathf.Clamp(currentThirst + amount, 0f, MaxThirst);
+        OnThirstChanged?.Invoke();
+    }
+
+    public void ChangeStamina(float amount)
+    {
+        currentStamina = Mathf.Clamp(currentStamina + amount, 0f, MaxStamina);
+        OnStaminaChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Добавление опыта с возможным повышением уровня
+    /// </summary>
+    public void AddExperience(int amount)
+    {
+        currentExp += amount;
+
+        while (currentExp >= expToNextLevel && expToNextLevel > 0)
+        {
+            currentExp -= expToNextLevel;
+            playerLevel++;
+            OnLevelChanged?.Invoke();
+            // Здесь можно добавить вызов CharacterProgression.GainLevel()
+        }
+    }
 }

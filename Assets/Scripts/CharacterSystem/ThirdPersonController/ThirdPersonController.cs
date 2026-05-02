@@ -90,10 +90,11 @@ using UnityEngine.InputSystem;
         private float _verticalVelocity;
         private float _terminalVelocity = 53.0f;
         private MovementState _currentMovementState = MovementState.Running;
+        private CharacterStats _stats;
 
 
-        // Время, прошедшее с предыдущего кадра
-        private float _jumpTimeoutDelta;
+    // Время, прошедшее с предыдущего кадра
+    private float _jumpTimeoutDelta;
         private float _fallTimeoutDelta;
 
         // ID анимаций
@@ -137,33 +138,34 @@ using UnityEngine.InputSystem;
             }
         }
 
-        private void Start()
+    private void Start()
+    {
+        _cinemachineTargetYaw = CinemachineCameraTarget.transform.rotation.eulerAngles.y;
+
+        _hasAnimator = TryGetComponent(out _animator);
+        _controller = GetComponent<CharacterController>();
+        _input = GetComponent<InputsController>();
+        _stats = GetComponent<CharacterStats>();
+
+        if (_stats == null)
         {
-            _cinemachineTargetYaw = CinemachineCameraTarget.transform.rotation.eulerAngles.y;
-            
-            _hasAnimator = TryGetComponent(out _animator);
-            _controller = GetComponent<CharacterController>();
-            _input = GetComponent<InputsController>();
-
-            #if ENABLE_INPUT_SYSTEM
-                _playerInput = GetComponent<PlayerInput>();
-            #else
-			    Debug.LogError( "Требуется установить компонент Input System из Unity Registory");
-            #endif
-
-            AssignAnimationIDs();
-
-            // Сбрасываем наши таймауты при старте
-            _jumpTimeoutDelta = JumpTimeout;
-            _fallTimeoutDelta = FallTimeout;
+            Debug.LogError("CharacterStats не найден!");
         }
 
-        private void Update()
+        _playerInput = GetComponent<PlayerInput>();
+
+        AssignAnimationIDs();
+
+        _jumpTimeoutDelta = JumpTimeout;
+        _fallTimeoutDelta = FallTimeout;
+    }
+
+    private void Update()
         {
             _hasAnimator = TryGetComponent(out _animator);
 
             UpdateMovementState();
-            JumpAndGravity();
+        JumpAndGravity();
             GroundedCheck();
             Move();
         }
@@ -218,23 +220,65 @@ using UnityEngine.InputSystem;
                 _cinemachineTargetYaw, 0.0f);
         }
 
-        private void UpdateMovementState()
+    private void UpdateMovementState()
+    {
+        if (_stats == null)
         {
-            if (_input.sprint)
-            {
-                _currentMovementState = MovementState.Sprinting;
-            }
-            else if (_input.walk)
-            {
-                _currentMovementState = MovementState.Walking;
-            }
-            else
-            {
-                _currentMovementState = MovementState.Running;
-            }
+            _currentMovementState = MovementState.Running;
+            return;
         }
 
-        private void Move()
+        // Если стамина закончилась — принудительно переводим в обычный бег
+        if (_stats.currentStamina <= 0f)
+        {
+            StopSprinting();
+            return;
+        }
+
+        bool wantsToSprint = _input.sprint && _input.move != Vector2.zero;
+
+        if (wantsToSprint)
+        {
+            float staminaToConsume = GetSprintStaminaCostPerFrame();
+
+            if (_stats.currentStamina < staminaToConsume)
+            {
+                // Списываем остаток стамины в ноль, чтобы спринт не включался снова на следующем кадре.
+                _stats.UseStamina(_stats.currentStamina);
+                StopSprinting();
+                return;
+            }
+
+            _currentMovementState = MovementState.Sprinting;
+            return;
+        }
+
+        if (_input.walk)
+        {
+            _currentMovementState = MovementState.Walking;
+        }
+        else
+        {
+            _currentMovementState = MovementState.Running;
+        }
+    }
+
+    private float GetSprintStaminaCostPerFrame()
+    {
+        return _stats == null ? 0f : _stats.sprintCostPerSecond * Time.deltaTime;
+    }
+
+    private void StopSprinting()
+    {
+        _currentMovementState = MovementState.Running;
+
+        if (_input != null && _input.sprint)
+        {
+            _input.SprintInput(false);
+        }
+    }
+
+    private void Move()
         {
             // Устанавливаем целевую скорость на основе скорости движения, скорости спринта и того, зажат ли спринт
             float targetSpeed = _currentMovementState switch
@@ -307,7 +351,21 @@ using UnityEngine.InputSystem;
                 _animator.SetFloat(_animIDMotionSpeed, inputMagnitude);
                 
             }
+
+        // === РАСХОД СТАМИНЫ ПРИ СПРИНТЕ ===
+        if (_currentMovementState == MovementState.Sprinting &&
+            _input.move != Vector2.zero &&
+            _stats != null)
+        {
+            float staminaToConsume = GetSprintStaminaCostPerFrame();
+
+            if (!_stats.UseStamina(staminaToConsume))
+            {
+                // Если стамины не хватило — принудительно переводим в обычный бег
+                StopSprinting();
+            }
         }
+    }
 
         private void JumpAndGravity()
         {
@@ -329,21 +387,22 @@ using UnityEngine.InputSystem;
                     _verticalVelocity = -2f;
                 }
 
-                // Прыжок
-                if (_input.jump && _jumpTimeoutDelta <= 0.0f)
+            // Прыжок
+            if (_input.jump && _jumpTimeoutDelta <= 0.0f)
+            {
+                if (_stats == null || _stats.UseStamina(_stats.jumpCost))
                 {
-                    // Квадратный корень из H * -2 * G = величина скорости, необходимая для достижения желаемой высоты
                     _verticalVelocity = Mathf.Sqrt(JumpHeight * -2f * Gravity);
 
-                    // Обновляем аниматор, если используется персонаж
                     if (_hasAnimator)
                     {
                         _animator.SetBool(_animIDJump, true);
                     }
                 }
+            }
 
-                // Таймаут прыжка
-                if (_jumpTimeoutDelta >= 0.0f)
+            // Таймаут прыжка
+            if (_jumpTimeoutDelta >= 0.0f)
                 {
                     _jumpTimeoutDelta -= Time.deltaTime;
                 }

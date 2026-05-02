@@ -1725,6 +1725,7 @@ GameObject:
   - component: {fileID: 1162392903998980189}
   - component: {fileID: 3520414552458384312}
   - component: {fileID: 2119264397400603154}
+  - component: {fileID: 1800255137450909499}
   - component: {fileID: 5017360348156557004}
   - component: {fileID: 3425128193478347482}
   - component: {fileID: 5443794937601227173}
@@ -1903,6 +1904,23 @@ MonoBehaviour:
   m_DefaultActionMap: Player
   m_SplitScreenIndex: -1
   m_Camera: {fileID: 0}
+--- !u!114 &1800255137450909499
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4948293102255018595}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 01c102d218a3c124d974b17430310ebc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  pushLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  canPush: 0
+  strength: 1.1
 --- !u!114 &5017360348156557004
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2122,7 +2140,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   autoPickup: 0
-  worldItemTag: WorldItem
   playerInventory: {fileID: 1991186869224494319}
   inputs: {fileID: 3425128193478347482}
 --- !u!1 &5179377334278606291
