@@ -81,6 +81,7 @@ public class CharacterStats : MonoBehaviour
     public float MaxHunger { get; private set; }
     public float MaxThirst { get; private set; }
     public float MaxStamina { get; private set; }
+    public float CurrentStaminaLimit { get; private set; }
     public float MaxWeight { get; private set; }
 
     // Процентные значения для HUD
@@ -130,7 +131,7 @@ public class CharacterStats : MonoBehaviour
         if (Time.time < lastStaminaUseTime + GetEffectiveStaminaRegenDelay())
             return;
 
-        if (currentStamina >= MaxStamina)
+        if (currentStamina >= CurrentStaminaLimit)
             return;
 
         // бонус от ловкости
@@ -138,7 +139,7 @@ public class CharacterStats : MonoBehaviour
 
         float regen = staminaRegenRate * agilityBonus * Time.deltaTime;
 
-        currentStamina = Mathf.Clamp(currentStamina + regen, 0f, MaxStamina);
+        currentStamina = Mathf.Clamp(currentStamina + regen, 0f, CurrentStaminaLimit);
         OnStaminaChanged?.Invoke();
     }
 
@@ -202,14 +203,15 @@ public class CharacterStats : MonoBehaviour
         MaxArmor = baseMaxArmor;
         MaxHunger = baseMaxHunger;
         MaxThirst = baseMaxThirst;
-        MaxStamina = baseMaxStamina * GetStaminaMultiplierForCurrentNeeds();
+        MaxStamina = baseMaxStamina;
+        CurrentStaminaLimit = MaxStamina * GetStaminaMultiplierForCurrentNeeds();
         MaxWeight = baseMaxWeight + strength.Value * strengthWeightFactor;
 
         // Ограничиваем текущие значения новыми максимумами
         currentHealth = Mathf.Clamp(currentHealth, 0f, MaxHealth);
         currentHunger = Mathf.Clamp(currentHunger, 0f, MaxHunger);
         currentThirst = Mathf.Clamp(currentThirst, 0f, MaxThirst);
-        currentStamina = Mathf.Clamp(currentStamina, 0f, MaxStamina);
+        currentStamina = Mathf.Clamp(currentStamina, 0f, CurrentStaminaLimit);
 
         OnStatsRecalculated?.Invoke();
         OnHealthChanged?.Invoke();
@@ -240,7 +242,7 @@ public class CharacterStats : MonoBehaviour
 
     public void ChangeStamina(float amount)
     {
-        currentStamina = Mathf.Clamp(currentStamina + amount, 0f, MaxStamina);
+        currentStamina = Mathf.Clamp(currentStamina + amount, 0f, CurrentStaminaLimit);
 
         if (amount < 0f && currentStamina <= 0f)
         {
