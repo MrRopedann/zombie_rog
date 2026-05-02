@@ -1058,10 +1058,11 @@ MonoBehaviour:
   baseMaxThirst: 100
   baseMaxStamina: 100
   baseMaxWeight: 25
-  staminaRegenRate: 12
+  staminaRegenRate: 6
   staminaRegenDelay: 1.2
   sprintCostPerSecond: 18
-  jumpCost: 20
+  jumpCost: 10
+  staminaExhaustionLockDuration: 1.2
   hungerDecreaseRate: 0.05
   thirstDecreaseRate: 0.1
   staminaDecreaseRate: 0.5

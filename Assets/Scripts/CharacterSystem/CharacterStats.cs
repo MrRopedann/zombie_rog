@@ -3,23 +3,23 @@ using UnityEngine;
 
 public class CharacterStats : MonoBehaviour
 {
-    [Header("Идентификация")]
+    [Header("РРґРµРЅС‚РёС„РёРєР°С†РёСЏ")]
     public int playerID = 0;
     public string playerName = "Ropedann";
 
-    [Header("Уровень и опыт")]
+    [Header("РЈСЂРѕРІРµРЅСЊ Рё РѕРїС‹С‚")]
     public int playerLevel = 1;
     public int currentExp = 0;
     public int expToNextLevel = 100;
 
-    [Header("Текущие ресурсы")]
+    [Header("РўРµРєСѓС‰РёРµ СЂРµСЃСѓСЂСЃС‹")]
     public float currentHealth = 100f;
     public float currentArmor = 100f;
     public float currentHunger = 100f;
     public float currentThirst = 100f;
     public float currentStamina = 100f;
 
-    [Header("Базовые максимальные значения")]
+    [Header("Р‘Р°Р·РѕРІС‹Рµ РјР°РєСЃРёРјР°Р»СЊРЅС‹Рµ Р·РЅР°С‡РµРЅРёСЏ")]
     public float baseMaxHealth = 100f;
     public float baseMaxArmor = 100f;
     public float baseMaxHunger = 100f;
@@ -27,36 +27,38 @@ public class CharacterStats : MonoBehaviour
     public float baseMaxStamina = 100f;
     public float baseMaxWeight = 25f;
 
-    [Header("Стамина логика")]
-    public float staminaRegenRate = 12f;      // восстановление в секунду
-    public float staminaRegenDelay = 1.2f;    // задержка после расхода
-    public float sprintCostPerSecond = 18f;   // расход при беге
-    public float jumpCost = 20f;              // разовый расход прыжка
+    [Header("РЎС‚Р°РјРёРЅР° Р»РѕРіРёРєР°")]
+    public float staminaRegenRate = 6f;       // РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёРµ РІ СЃРµРєСѓРЅРґСѓ
+    public float staminaRegenDelay = 1.2f;    // Р·Р°РґРµСЂР¶РєР° РїРѕСЃР»Рµ СЂР°СЃС…РѕРґР°
+    public float sprintCostPerSecond = 18f;   // СЂР°СЃС…РѕРґ РїСЂРё Р±РµРіРµ
+    public float jumpCost = 10f;              // СЂР°Р·РѕРІС‹Р№ СЂР°СЃС…РѕРґ РїСЂС‹Р¶РєР°
+    public float staminaExhaustionLockDuration = 1.2f; // Р±Р»РѕРє СЃРїСЂРёРЅС‚Р° Рё РїСЂС‹Р¶РєР° РїРѕСЃР»Рµ РїРѕР»РЅРѕРіРѕ РёСЃС‚РѕС‰РµРЅРёСЏ
 
-    [Header("Коэффициенты расхода")]
+    [Header("РљРѕСЌС„С„РёС†РёРµРЅС‚С‹ СЂР°СЃС…РѕРґР°")]
     public float hungerDecreaseRate = 0.05f;
     public float thirstDecreaseRate = 0.1f;
     public float staminaDecreaseRate = 0.5f;
 
-    [Header("Основные атрибуты")]
-    public BaseStat durability = new BaseStat(5f);   // Стойкость
-    public BaseStat agility = new BaseStat(5f);   // Ловкость
-    public BaseStat strength = new BaseStat(5f);   // Сила
+    [Header("РћСЃРЅРѕРІРЅС‹Рµ Р°С‚СЂРёР±СѓС‚С‹")]
+    public BaseStat durability = new BaseStat(5f);   // РЎС‚РѕР№РєРѕСЃС‚СЊ
+    public BaseStat agility = new BaseStat(5f);   // Р›РѕРІРєРѕСЃС‚СЊ
+    public BaseStat strength = new BaseStat(5f);   // РЎРёР»Р°
 
-    [Header("Коэффициенты влияния атрибутов")]
+    [Header("РљРѕСЌС„С„РёС†РёРµРЅС‚С‹ РІР»РёСЏРЅРёСЏ Р°С‚СЂРёР±СѓС‚РѕРІ")]
     public float durabilityHealthFactor = 20f;
     public float strengthWeightFactor = 5f;
-    public float agilityStaminaFactor = 0.015f;      // рекомендуется меньшее значение
+    public float agilityStaminaFactor = 0.015f;      // СЂРµРєРѕРјРµРЅРґСѓРµС‚СЃСЏ РјРµРЅСЊС€РµРµ Р·РЅР°С‡РµРЅРёРµ
 
-    [Header("Ссылки")]
+    [Header("РЎСЃС‹Р»РєРё")]
     public GameObject characterPrefab;
     public GameObject weaponSlot;
     public GameObject supportWeaponSlot;
 
     private bool isInitialized = false;
     private float lastStaminaUseTime;
+    private float staminaExhaustionLockEndTime;
 
-    // Производные максимальные значения
+    // РџСЂРѕРёР·РІРѕРґРЅС‹Рµ РјР°РєСЃРёРјР°Р»СЊРЅС‹Рµ Р·РЅР°С‡РµРЅРёСЏ
     public float MaxHealth { get; private set; }
     public float MaxArmor { get; private set; }
     public float MaxHunger { get; private set; }
@@ -64,18 +66,19 @@ public class CharacterStats : MonoBehaviour
     public float MaxStamina { get; private set; }
     public float MaxWeight { get; private set; }
 
-    // Процентные значения для HUD
+    // РџСЂРѕС†РµРЅС‚РЅС‹Рµ Р·РЅР°С‡РµРЅРёСЏ РґР»СЏ HUD
     public float HealthPercent => MaxHealth > 0 ? currentHealth / MaxHealth : 0f;
     public float HungerPercent => MaxHunger > 0 ? currentHunger / MaxHunger : 0f;
     public float ThirstPercent => MaxThirst > 0 ? currentThirst / MaxThirst : 0f;
     public float StaminaPercent => MaxStamina > 0 ? currentStamina / MaxStamina : 0f;
+    public bool AreStaminaActionsLocked => Time.time < staminaExhaustionLockEndTime;
 
-    // ====================== СОБЫТИЯ ДЛЯ HUD ======================
+    // ====================== РЎРћР‘Р«РўРРЇ Р”Р›РЇ HUD ======================
     public event Action OnHealthChanged;
     public event Action OnHungerChanged;
     public event Action OnThirstChanged;
     public event Action OnStaminaChanged;
-    public event Action OnStatsRecalculated;   // когда меняются максимумы
+    public event Action OnStatsRecalculated;   // РєРѕРіРґР° РјРµРЅСЏСЋС‚СЃСЏ РјР°РєСЃРёРјСѓРјС‹
     public event Action OnLevelChanged;
 
     private void Awake()
@@ -91,7 +94,7 @@ public class CharacterStats : MonoBehaviour
 
     private void Update()
     {
-        // Пассивный расход голода и жажды
+        // РџР°СЃСЃРёРІРЅС‹Р№ СЂР°СЃС…РѕРґ РіРѕР»РѕРґР° Рё Р¶Р°Р¶РґС‹
         ChangeHunger(-hungerDecreaseRate * Time.deltaTime);
         ChangeThirst(-thirstDecreaseRate * Time.deltaTime);
 
@@ -100,14 +103,17 @@ public class CharacterStats : MonoBehaviour
 
     private void HandleStaminaRegen()
     {
-        // задержка после использования
+        if (AreStaminaActionsLocked)
+            return;
+
+        // Р·Р°РґРµСЂР¶РєР° РїРѕСЃР»Рµ РёСЃРїРѕР»СЊР·РѕРІР°РЅРёСЏ
         if (Time.time < lastStaminaUseTime + staminaRegenDelay)
             return;
 
         if (currentStamina >= MaxStamina)
             return;
 
-        // бонус от ловкости
+        // Р±РѕРЅСѓСЃ РѕС‚ Р»РѕРІРєРѕСЃС‚Рё
         float agilityBonus = 1f + agility.Value * agilityStaminaFactor;
 
         float regen = staminaRegenRate * agilityBonus * Time.deltaTime;
@@ -118,6 +124,9 @@ public class CharacterStats : MonoBehaviour
 
     public bool UseStamina(float amount)
     {
+        if (amount <= 0f)
+            return true;
+
         if (currentStamina < amount)
             return false;
 
@@ -125,9 +134,20 @@ public class CharacterStats : MonoBehaviour
         currentStamina = Mathf.Clamp(currentStamina, 0f, MaxStamina);
 
         lastStaminaUseTime = Time.time;
+
+        if (currentStamina <= 0f)
+        {
+            StartStaminaExhaustionLock();
+        }
+
         OnStaminaChanged?.Invoke();
 
         return true;
+    }
+
+    private void StartStaminaExhaustionLock()
+    {
+        staminaExhaustionLockEndTime = Mathf.Max(staminaExhaustionLockEndTime, Time.time + staminaExhaustionLockDuration);
     }
 
     private void SetFullStats()
@@ -137,6 +157,7 @@ public class CharacterStats : MonoBehaviour
         currentHunger = MaxHunger;
         currentThirst = MaxThirst;
         currentStamina = MaxStamina;
+        staminaExhaustionLockEndTime = 0f;
 
         OnHealthChanged?.Invoke();
         OnHungerChanged?.Invoke();
@@ -145,7 +166,7 @@ public class CharacterStats : MonoBehaviour
     }
 
     /// <summary>
-    /// Пересчёт всех производных характеристик
+    /// РџРµСЂРµСЃС‡С‘С‚ РІСЃРµС… РїСЂРѕРёР·РІРѕРґРЅС‹С… С…Р°СЂР°РєС‚РµСЂРёСЃС‚РёРє
     /// </summary>
     public void RecalculateAllStats()
     {
@@ -156,7 +177,7 @@ public class CharacterStats : MonoBehaviour
         MaxStamina = baseMaxStamina;
         MaxWeight = baseMaxWeight + strength.Value * strengthWeightFactor;
 
-        // Ограничиваем текущие значения новыми максимумами
+        // РћРіСЂР°РЅРёС‡РёРІР°РµРј С‚РµРєСѓС‰РёРµ Р·РЅР°С‡РµРЅРёСЏ РЅРѕРІС‹РјРё РјР°РєСЃРёРјСѓРјР°РјРё
         currentHealth = Mathf.Clamp(currentHealth, 0f, MaxHealth);
         currentHunger = Mathf.Clamp(currentHunger, 0f, MaxHunger);
         currentThirst = Mathf.Clamp(currentThirst, 0f, MaxThirst);
@@ -166,7 +187,7 @@ public class CharacterStats : MonoBehaviour
         OnHealthChanged?.Invoke();
     }
 
-    // ====================== МЕТОДЫ ИЗМЕНЕНИЯ ======================
+    // ====================== РњР•РўРћР”Р« РР—РњР•РќР•РќРРЇ ======================
 
     public void ChangeHealth(float amount)
     {
@@ -189,11 +210,18 @@ public class CharacterStats : MonoBehaviour
     public void ChangeStamina(float amount)
     {
         currentStamina = Mathf.Clamp(currentStamina + amount, 0f, MaxStamina);
+
+        if (amount < 0f && currentStamina <= 0f)
+        {
+            lastStaminaUseTime = Time.time;
+            StartStaminaExhaustionLock();
+        }
+
         OnStaminaChanged?.Invoke();
     }
 
     /// <summary>
-    /// Добавление опыта с возможным повышением уровня
+    /// Р”РѕР±Р°РІР»РµРЅРёРµ РѕРїС‹С‚Р° СЃ РІРѕР·РјРѕР¶РЅС‹Рј РїРѕРІС‹С€РµРЅРёРµРј СѓСЂРѕРІРЅСЏ
     /// </summary>
     public void AddExperience(int amount)
     {
@@ -204,7 +232,7 @@ public class CharacterStats : MonoBehaviour
             currentExp -= expToNextLevel;
             playerLevel++;
             OnLevelChanged?.Invoke();
-            // Здесь можно добавить вызов CharacterProgression.GainLevel()
+            // Р—РґРµСЃСЊ РјРѕР¶РЅРѕ РґРѕР±Р°РІРёС‚СЊ РІС‹Р·РѕРІ CharacterProgression.GainLevel()
         }
     }
 }

@@ -224,14 +224,13 @@ using UnityEngine.InputSystem;
     {
         if (_stats == null)
         {
-            _currentMovementState = MovementState.Running;
+            ApplyDefaultMovementState();
             return;
         }
 
-        // Если стамина закончилась — принудительно переводим в обычный бег
-        if (_stats.currentStamina <= 0f)
+        if (_stats.AreStaminaActionsLocked)
         {
-            StopSprinting();
+            StopStaminaActions();
             return;
         }
 
@@ -253,14 +252,7 @@ using UnityEngine.InputSystem;
             return;
         }
 
-        if (_input.walk)
-        {
-            _currentMovementState = MovementState.Walking;
-        }
-        else
-        {
-            _currentMovementState = MovementState.Running;
-        }
+        ApplyDefaultMovementState();
     }
 
     private float GetSprintStaminaCostPerFrame()
@@ -268,14 +260,35 @@ using UnityEngine.InputSystem;
         return _stats == null ? 0f : _stats.sprintCostPerSecond * Time.deltaTime;
     }
 
+    private void ApplyDefaultMovementState()
+    {
+        _currentMovementState = _input != null && _input.walk
+            ? MovementState.Walking
+            : MovementState.Running;
+    }
+
     private void StopSprinting()
     {
-        _currentMovementState = MovementState.Running;
+        ApplyDefaultMovementState();
 
         if (_input != null && _input.sprint)
         {
             _input.SprintInput(false);
         }
+    }
+
+    private void StopJumping()
+    {
+        if (_input != null && _input.jump)
+        {
+            _input.JumpInput(false);
+        }
+    }
+
+    private void StopStaminaActions()
+    {
+        StopSprinting();
+        StopJumping();
     }
 
     private void Move()
@@ -369,6 +382,8 @@ using UnityEngine.InputSystem;
 
         private void JumpAndGravity()
         {
+            bool staminaActionsLocked = _stats != null && _stats.AreStaminaActionsLocked;
+
             if (Grounded)
             {
                 // Сбрасываем таймер таймаута падения
@@ -387,8 +402,13 @@ using UnityEngine.InputSystem;
                     _verticalVelocity = -2f;
                 }
 
+            if (staminaActionsLocked)
+            {
+                StopJumping();
+            }
+
             // Прыжок
-            if (_input.jump && _jumpTimeoutDelta <= 0.0f)
+            if (!staminaActionsLocked && _input.jump && _jumpTimeoutDelta <= 0.0f)
             {
                 if (_stats == null || _stats.UseStamina(_stats.jumpCost))
                 {
