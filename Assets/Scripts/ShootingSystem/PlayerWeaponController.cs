@@ -45,6 +45,18 @@ public class PlayerWeaponController : MonoBehaviour
         _inputsController.OnPlayerSwithcWeapon -= OnSwitchedWeapon;
     }
 
+    private void Update()
+    {
+        Weapon currentWeapon = GetCurrentWeapon();
+
+        if (_inputsController == null || currentWeapon == null || !currentWeapon.Automatic || !_inputsController.fireHeld)
+        {
+            return;
+        }
+
+        currentWeapon.TryShoot();
+    }
+
     private void ResolveInputsController()
     {
         if (_inputsController != null)
@@ -107,12 +119,7 @@ public class PlayerWeaponController : MonoBehaviour
 
     private void OnFire()
     {
-        if (_weapons == null || _weapons.Length == 0)
-        {
-            return;
-        }
-
-        Weapon currentWeapon = _weapons[_selectedIndexWeapon];
+        Weapon currentWeapon = GetCurrentWeapon();
 
         if (currentWeapon != null)
         {
@@ -129,5 +136,20 @@ public class PlayerWeaponController : MonoBehaviour
 
         _selectedIndexWeapon = _selectedIndexWeapon < _weapons.Length - 1 ? _selectedIndexWeapon + 1 : 0;
         ActivateSelectedWeapon();
+    }
+
+    private Weapon GetCurrentWeapon()
+    {
+        if (_weapons == null || _weapons.Length == 0)
+        {
+            return null;
+        }
+
+        if (_selectedIndexWeapon < 0 || _selectedIndexWeapon >= _weapons.Length)
+        {
+            return null;
+        }
+
+        return _weapons[_selectedIndexWeapon];
     }
 }

@@ -1,158 +1,179 @@
-﻿ using UnityEngine;
-#if ENABLE_INPUT_SYSTEM 
+using UnityEngine;
+#if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
 
-/* 
- * Примечание: анимации вызываются через контроллер как для персонажа, так и для капсулы с использованием проверок аниматора на null
+/*
+ * Примечание: анимации вызываются через контроллер как для персонажа, так и для капсулы
+ * с использованием проверок аниматора на null.
  */
 
+[RequireComponent(typeof(CharacterController))]
+#if ENABLE_INPUT_SYSTEM
+[RequireComponent(typeof(PlayerInput))]
+#endif
+public class ThirdPersonController : MonoBehaviour
+{
+    [Header("Игрок")]
+    [Tooltip("Скорость движения персонажа в м/с")]
+    public float WalkSpeed = 2.0f;
 
-    [RequireComponent(typeof(CharacterController))]
-    #if ENABLE_INPUT_SYSTEM 
-        [RequireComponent(typeof(PlayerInput))]
-    #endif
-    public class ThirdPersonController : MonoBehaviour
-    {
-        [Header("Игрок")]
-        [Tooltip("Скорость движения персонажа в м/с")]
-        public float WalkSpeed = 2.0f;
+    [Tooltip("Скорость движения персонажа в м/с")]
+    public float MoveSpeed = 4.0f;
 
-        [Tooltip("Скорость движения персонажа в м/с")]
-        public float MoveSpeed = 4.0f;
+    [Tooltip("Скорость спринта персонажа в м/с")]
+    public float SprintSpeed = 6.5f;
 
-        [Tooltip("Скорость спринта персонажа в м/с")]
-        public float SprintSpeed = 6.5f;
+    [Tooltip("Насколько быстро персонаж поворачивается в направлении движения")]
+    [Range(0.0f, 0.3f)]
+    public float RotationSmoothTime = 0.12f;
 
-        [Tooltip("Насколько быстро персонаж поворачивается в направлении движения")]
-        [Range(0.0f, 0.3f)]
-        public float RotationSmoothTime = 0.12f;
+    [Tooltip("Ускорение и замедление")]
+    public float SpeedChangeRate = 10.0f;
 
-        [Tooltip("Ускорение и замедление")]
-        public float SpeedChangeRate = 10.0f;
+    [Header("Shooter Movement")]
+    [Tooltip("Базовая скорость движения во время прицеливания и стрейфа")]
+    public float AimMoveSpeed = 3.25f;
 
-        public AudioClip LandingAudioClip;
-        public AudioClip[] FootstepAudioClips;
-        [Range(0, 1)] public float FootstepAudioVolume = 0.5f;
+    [Tooltip("Насколько быстро тело доворачивается к направлению камеры")]
+    [Range(0.0f, 0.2f)]
+    public float AimRotationSmoothTime = 0.05f;
 
-        [Space(10)]
-        [Tooltip("Высота, на которую игрок может прыгнуть")]
-        public float JumpHeight = 1.2f;
+    [Tooltip("Замедление движения в сторону во время прицеливания")]
+    [Range(0.35f, 1.0f)]
+    public float AimStrafeSpeedMultiplier = 0.85f;
 
-        [Tooltip("Персонаж использует собственное значение гравитации. Значение по умолчанию в движке равно −9,81f")]
-        public float Gravity = -15.0f;
+    [Tooltip("Замедление движения назад во время прицеливания")]
+    [Range(0.25f, 1.0f)]
+    public float AimBackwardSpeedMultiplier = 0.7f;
 
-        [Space(10)]
-        [Tooltip("Время, которое должно пройти перед тем, как можно будет снова прыгнуть. Установите значение 0f, чтобы прыгать мгновенно снова")]
-        public float JumpTimeout = 0.50f;
+    public AudioClip LandingAudioClip;
+    public AudioClip[] FootstepAudioClips;
+    [Range(0, 1)] public float FootstepAudioVolume = 0.5f;
 
-        [Tooltip("Время, которое должно пройти перед переходом в состояние падения. Полезно, например, при спуске по лестнице")]
-        public float FallTimeout = 0.15f;
+    [Space(10)]
+    [Tooltip("Высота, на которую игрок может прыгнуть")]
+    public float JumpHeight = 1.2f;
 
-        [Header("Персонаж на земле")]
-        [Tooltip("Определяет, находится ли персонаж на земле. Не использует встроенную проверку grounded компонента CharacterController")]
-        public bool Grounded = true;
+    [Tooltip("Персонаж использует собственное значение гравитации. Значение по умолчанию в движке равно -9.81f")]
+    public float Gravity = -15.0f;
 
-        [Tooltip("Полезно, когда поверхность неровная")]
-        public float GroundedOffset = -0.14f;
+    [Space(10)]
+    [Tooltip("Время, которое должно пройти перед тем, как можно будет снова прыгнуть")]
+    public float JumpTimeout = 0.50f;
 
-        [Tooltip("Радиус проверки касания земли. Должен соответствовать радиусу CharacterController")]
-        public float GroundedRadius = 0.28f;
+    [Tooltip("Время, которое должно пройти перед переходом в состояние падения")]
+    public float FallTimeout = 0.15f;
 
-        [Tooltip("Какие слои персонаж использует в качестве земли")]
-        public LayerMask GroundLayers;
+    [Header("Персонаж на земле")]
+    [Tooltip("Определяет, находится ли персонаж на земле")]
+    public bool Grounded = true;
 
-        [Header("Камера")]
-        [Tooltip("Цель слежения, установленная в виртуальной камере, за которой камера будет следовать")]
-        public GameObject CinemachineCameraTarget;
+    [Tooltip("Полезно, когда поверхность неровная")]
+    public float GroundedOffset = -0.14f;
 
-        [Tooltip("Как далеко в градусах можно повернуть камеру вверх")]
-        public float TopClamp = 70.0f;
+    [Tooltip("Радиус проверки касания земли")]
+    public float GroundedRadius = 0.28f;
 
-        [Tooltip("Как далеко в градусах можно опустить камеру вниз")]
-        public float BottomClamp = -30.0f;
+    [Tooltip("Какие слои персонаж использует в качестве земли")]
+    public LayerMask GroundLayers;
 
-        [Tooltip("Дополнительные градусы для переопределения поворота камеры. Полезно для точной настройки позиции камеры при блокировке")]
-        public float CameraAngleOverride = 0.0f;
+    [Header("Камера")]
+    [Tooltip("Цель слежения, установленная в виртуальной камере")]
+    public GameObject CinemachineCameraTarget;
 
-        [Tooltip("Для блокировки позиции камеры по всем осям")]
-        public bool LockCameraPosition = false;
+    [Tooltip("Как далеко в градусах можно повернуть камеру вверх")]
+    public float TopClamp = 70.0f;
 
-        // Камера
-        private float _cinemachineTargetYaw;
-        private float _cinemachineTargetPitch;
+    [Tooltip("Как далеко в градусах можно опустить камеру вниз")]
+    public float BottomClamp = -30.0f;
 
-        // Персонаж
-        private float _speed;
-        private float _animationBlend;
-        private float _targetRotation = 0.0f;
-        private float _rotationVelocity;
-        private float _verticalVelocity;
-        private float _terminalVelocity = 53.0f;
-        private MovementState _currentMovementState = MovementState.Running;
-        private CharacterStats _stats;
+    [Tooltip("Дополнительные градусы для переопределения поворота камеры")]
+    public float CameraAngleOverride = 0.0f;
 
+    [Tooltip("Для блокировки позиции камеры по всем осям")]
+    public bool LockCameraPosition = false;
 
-    // Время, прошедшее с предыдущего кадра
+    private float _cinemachineTargetYaw;
+    private float _cinemachineTargetPitch;
+
+    private float _speed;
+    private float _animationBlend;
+    private float _targetRotation;
+    private float _moveRotationVelocity;
+    private float _aimRotationVelocity;
+    private float _verticalVelocity;
+    private readonly float _terminalVelocity = 53.0f;
+    private MovementState _currentMovementState = MovementState.Running;
+    private CharacterStats _stats;
+
     private float _jumpTimeoutDelta;
-        private float _fallTimeoutDelta;
+    private float _fallTimeoutDelta;
 
-        // ID анимаций
-        private int _animIDSpeed;
-        private int _animIDGrounded;
-        private int _animIDJump;
-        private int _animIDFreeFall;
-        private int _animIDMotionSpeed;
+    private int _animIDSpeed;
+    private int _animIDGrounded;
+    private int _animIDJump;
+    private int _animIDFreeFall;
+    private int _animIDMotionSpeed;
 
-        #if ENABLE_INPUT_SYSTEM
-        private PlayerInput _playerInput;
-        #endif
-        private Animator _animator;
-        private CharacterController _controller;
-        private InputsController _input;
-        private GameObject _mainCamera;
+#if ENABLE_INPUT_SYSTEM
+    private PlayerInput _playerInput;
+#endif
+    private Animator _animator;
+    private CharacterController _controller;
+    private InputsController _input;
+    private GameObject _mainCamera;
 
-        private const float _threshold = 0.01f;
+    private const float _threshold = 0.01f;
 
-        private bool _hasAnimator;
+    private bool _hasAnimator;
+    private bool _wasRotateBodyMode;
 
-        private bool IsCurrentDeviceMouse
+    private bool IsCurrentDeviceMouse
+    {
+        get
         {
-            get
-            {
-                #if ENABLE_INPUT_SYSTEM
-                    return _playerInput.currentControlScheme == "KeyboardMouse";
-                #else
-				    return false;
-                #endif
-            }
+
+            return _playerInput != null && _playerInput.currentControlScheme == "KeyboardMouse";
         }
+    }
 
+    private bool IsShooterBodyRotationActive => _input != null && _input.IsShooterModeActive;
+    private bool IsPrecisionMovementActive => _input != null && (_input.aim || _input.fireHeld);
 
-        private void Awake()
+    private void Awake()
+    {
+        if (_mainCamera == null)
         {
-            // Получаем ссылку на нашу основную камеру
-            if (_mainCamera == null)
-            {
-                _mainCamera = GameObject.FindGameObjectWithTag("MainCamera");
-            }
+            _mainCamera = GameObject.FindGameObjectWithTag("MainCamera");
         }
+    }
 
     private void Start()
     {
-        _cinemachineTargetYaw = CinemachineCameraTarget.transform.rotation.eulerAngles.y;
+        if (CinemachineCameraTarget != null)
+        {
+            _cinemachineTargetYaw = CinemachineCameraTarget.transform.rotation.eulerAngles.y;
+        }
 
         _hasAnimator = TryGetComponent(out _animator);
         _controller = GetComponent<CharacterController>();
         _input = GetComponent<InputsController>();
         _stats = GetComponent<CharacterStats>();
 
-        if (_stats == null)
+        if (_input == null)
         {
-            Debug.LogError("CharacterStats не найден!");
+            Debug.LogError($"{nameof(InputsController)} не найден!", this);
         }
 
+        if (_stats == null)
+        {
+            Debug.LogError($"{nameof(CharacterStats)} не найден!", this);
+        }
+
+#if ENABLE_INPUT_SYSTEM
         _playerInput = GetComponent<PlayerInput>();
+#endif
 
         AssignAnimationIDs();
 
@@ -161,88 +182,120 @@ using UnityEngine.InputSystem;
     }
 
     private void Update()
-        {
-            _hasAnimator = TryGetComponent(out _animator);
-
-            UpdateMovementState();
-        JumpAndGravity();
-            GroundedCheck();
-            Move();
-        }
-
-        private void LateUpdate()
-        {
-            CameraRotation();
-        }
-
-        private void AssignAnimationIDs()
-        {
-            _animIDSpeed = Animator.StringToHash("Speed");
-            _animIDGrounded = Animator.StringToHash("Grounded");
-            _animIDJump = Animator.StringToHash("Jump");
-            _animIDFreeFall = Animator.StringToHash("FreeFall");
-            _animIDMotionSpeed = Animator.StringToHash("MotionSpeed");
-        }
-
-        private void GroundedCheck()
-        {
-            // Устанавливаем позицию сферы со смещением
-            Vector3 spherePosition = new Vector3(transform.position.x, transform.position.y - GroundedOffset,
-                transform.position.z);
-            Grounded = Physics.CheckSphere(spherePosition, GroundedRadius, GroundLayers,
-                QueryTriggerInteraction.Ignore);
-
-            // Обновляем аниматор, если используется персонаж
-            if (_hasAnimator)
-            {
-                _animator.SetBool(_animIDGrounded, Grounded);
-            }
-        }
-
-        private void CameraRotation()
-        {
-            // если есть ввод и позиция камеры не зафиксирована
-            if (_input.look.sqrMagnitude >= _threshold && !LockCameraPosition)
-            {
-                // Мышь: не используем deltaTime — значение уже зависит от частоты кадров
-                float deltaTimeMultiplier = IsCurrentDeviceMouse ? 1.0f : Time.deltaTime;
-
-                _cinemachineTargetYaw += _input.look.x * deltaTimeMultiplier;
-                _cinemachineTargetPitch += _input.look.y * deltaTimeMultiplier;
-            }
-
-            // Ограничиваем наши повороты, чтобы значения находились в пределах 360 градусов
-            _cinemachineTargetYaw = ClampAngle(_cinemachineTargetYaw, float.MinValue, float.MaxValue);
-            _cinemachineTargetPitch = ClampAngle(_cinemachineTargetPitch, BottomClamp, TopClamp);
-
-            // Камера будет следовать за этой целью
-            CinemachineCameraTarget.transform.rotation = Quaternion.Euler(_cinemachineTargetPitch + CameraAngleOverride,
-                _cinemachineTargetYaw, 0.0f);
-        }
-
-    private void UpdateMovementState()
     {
-        if (_stats == null)
+        _hasAnimator = TryGetComponent(out _animator);
+
+        GroundedCheck();
+        UpdateMovementState();
+        JumpAndGravity();
+        Move();
+    }
+
+    private void LateUpdate()
+    {
+        CameraRotation();
+    }
+
+    private void AssignAnimationIDs()
+    {
+        _animIDSpeed = Animator.StringToHash("Speed");
+        _animIDGrounded = Animator.StringToHash("Grounded");
+        _animIDJump = Animator.StringToHash("Jump");
+        _animIDFreeFall = Animator.StringToHash("FreeFall");
+        _animIDMotionSpeed = Animator.StringToHash("MotionSpeed");
+    }
+
+    private void GroundedCheck()
+    {
+        Vector3 spherePosition = new Vector3(
+            transform.position.x,
+            transform.position.y - GroundedOffset,
+            transform.position.z);
+
+        Grounded = Physics.CheckSphere(
+            spherePosition,
+            GroundedRadius,
+            GroundLayers,
+            QueryTriggerInteraction.Ignore);
+
+        if (_hasAnimator)
         {
-            ApplyDefaultMovementState();
+            _animator.SetBool(_animIDGrounded, Grounded);
+        }
+    }
+
+    private void CameraRotation()
+    {
+        if (_input == null || CinemachineCameraTarget == null)
+        {
             return;
         }
 
-        if (_stats.AreStaminaActionsLocked)
+        if (_input.look.sqrMagnitude >= _threshold && !LockCameraPosition)
+        {
+            float deltaTimeMultiplier = IsCurrentDeviceMouse ? 1.0f : Time.deltaTime;
+
+            _cinemachineTargetYaw += _input.look.x * deltaTimeMultiplier;
+            _cinemachineTargetPitch += _input.look.y * deltaTimeMultiplier;
+        }
+
+        _cinemachineTargetYaw = ClampAngle(_cinemachineTargetYaw, float.MinValue, float.MaxValue);
+        _cinemachineTargetPitch = ClampAngle(_cinemachineTargetPitch, BottomClamp, TopClamp);
+
+        if (!IsShooterBodyRotationActive)
+        {
+            _wasRotateBodyMode = false;
+            _aimRotationVelocity = 0f;
+
+            CinemachineCameraTarget.transform.rotation = Quaternion.Euler(
+                _cinemachineTargetPitch + CameraAngleOverride,
+                _cinemachineTargetYaw,
+                0.0f);
+            return;
+        }
+
+        if (!_wasRotateBodyMode)
+        {
+            _cinemachineTargetYaw = transform.eulerAngles.y;
+            _wasRotateBodyMode = true;
+        }
+
+        CinemachineCameraTarget.transform.localRotation = Quaternion.Euler(
+            _cinemachineTargetPitch + CameraAngleOverride,
+            0f,
+            0.0f);
+
+        float bodyYaw = Mathf.SmoothDampAngle(
+            transform.eulerAngles.y,
+            _cinemachineTargetYaw,
+            ref _aimRotationVelocity,
+            AimRotationSmoothTime);
+
+        transform.rotation = Quaternion.Euler(0f, bodyYaw, 0f);
+    }
+
+    private void UpdateMovementState()
+    {
+        if (_input == null)
+        {
+            _currentMovementState = MovementState.Running;
+            return;
+        }
+
+        if (_stats != null && _stats.AreStaminaActionsLocked)
         {
             StopStaminaActions();
             return;
         }
 
-        bool wantsToSprint = _input.sprint && _input.move != Vector2.zero;
+        bool wantsToSprint = !IsPrecisionMovementActive && _input.sprint && _input.move != Vector2.zero;
 
         if (wantsToSprint)
         {
             float staminaToConsume = GetSprintStaminaCostPerFrame();
 
-            if (_stats.currentStamina < staminaToConsume)
+            if (_stats != null && _stats.currentStamina < staminaToConsume)
             {
-                // Списываем остаток стамины в ноль, чтобы спринт не включался снова на следующем кадре.
                 _stats.UseStamina(_stats.currentStamina);
                 StopSprinting();
                 return;
@@ -262,9 +315,13 @@ using UnityEngine.InputSystem;
 
     private void ApplyDefaultMovementState()
     {
-        _currentMovementState = _input != null && _input.walk
-            ? MovementState.Walking
-            : MovementState.Running;
+        if (_input == null)
+        {
+            _currentMovementState = MovementState.Running;
+            return;
+        }
+
+        _currentMovementState = _input.walk ? MovementState.Walking : MovementState.Running;
     }
 
     private void StopSprinting()
@@ -292,80 +349,70 @@ using UnityEngine.InputSystem;
     }
 
     private void Move()
+    {
+        if (_input == null || _controller == null)
         {
-            // Устанавливаем целевую скорость на основе скорости движения, скорости спринта и того, зажат ли спринт
-            float targetSpeed = _currentMovementState switch
-            {
-                MovementState.Walking => WalkSpeed,
-                MovementState.Running => MoveSpeed,
-                MovementState.Sprinting => SprintSpeed,
-                _ => MoveSpeed
-            };
+            return;
+        }
 
-            // Простое ускорение и замедление, созданное для простоты удаления, замены или доработки
+        float targetSpeed = _currentMovementState switch
+        {
+            MovementState.Walking => WalkSpeed,
+            MovementState.Running => MoveSpeed,
+            MovementState.Sprinting => SprintSpeed,
+            _ => MoveSpeed
+        };
 
-            // примечание: оператор == Vector2 использует приближение, поэтому он не подвержен ошибкам плавающей точки и дешевле, чем вычисление magnitude
-            // если ввода нет, устанавливаем целевую скорость в 0
-            if (_input.move == Vector2.zero) targetSpeed = 0.0f;
+        if (IsPrecisionMovementActive)
+        {
+            targetSpeed = Mathf.Min(targetSpeed, AimMoveSpeed);
+        }
 
-            // Ссылка на текущую горизонтальную скорость игрока
-            float currentHorizontalSpeed = new Vector3(_controller.velocity.x, 0.0f, _controller.velocity.z).magnitude;
+        if (_input.move == Vector2.zero)
+        {
+            targetSpeed = 0.0f;
+        }
 
-            float speedOffset = 0.1f;
-            float inputMagnitude = _input.analogMovement ? _input.move.magnitude : 1f;
+        float currentHorizontalSpeed = new Vector3(_controller.velocity.x, 0.0f, _controller.velocity.z).magnitude;
+        float speedOffset = 0.1f;
+        float inputMagnitude = _input.move == Vector2.zero
+            ? 0f
+            : (_input.analogMovement ? Mathf.Clamp01(_input.move.magnitude) : 1f);
+        float directionalSpeedMultiplier = GetDirectionalSpeedMultiplier(_input.move);
+        float desiredSpeed = targetSpeed * inputMagnitude * directionalSpeedMultiplier;
 
-            // Ускоряемся или замедляемся до целевой скорости
-            if (currentHorizontalSpeed < targetSpeed - speedOffset ||
-                currentHorizontalSpeed > targetSpeed + speedOffset)
-            {
-                // Создаёт изогнутый результат вместо линейного, обеспечивая более органичное изменение скорости
-                // примечание: значение T в Lerp автоматически ограничивается, поэтому нам не нужно ограничивать нашу скорость
-                _speed = Mathf.Lerp(currentHorizontalSpeed, targetSpeed * inputMagnitude,
-                    Time.deltaTime * SpeedChangeRate);
+        if (currentHorizontalSpeed < desiredSpeed - speedOffset ||
+            currentHorizontalSpeed > desiredSpeed + speedOffset)
+        {
+            _speed = Mathf.Lerp(currentHorizontalSpeed, desiredSpeed, Time.deltaTime * SpeedChangeRate);
+            _speed = Mathf.Round(_speed * 1000f) / 1000f;
+        }
+        else
+        {
+            _speed = desiredSpeed;
+        }
 
-                // Округляем скорость до 3 десятичных знаков
-                _speed = Mathf.Round(_speed * 1000f) / 1000f;
-            }
-            else
-            {
-                _speed = targetSpeed;
-            }
+        _animationBlend = Mathf.Lerp(_animationBlend, desiredSpeed, Time.deltaTime * SpeedChangeRate);
+        if (_animationBlend < 0.01f)
+        {
+            _animationBlend = 0f;
+        }
 
-            _animationBlend = Mathf.Lerp(_animationBlend, targetSpeed, Time.deltaTime * SpeedChangeRate);
-            if (_animationBlend < 0.01f) _animationBlend = 0f;
+        Vector3 moveDirection = GetCameraRelativeMoveDirection(_input.move);
 
-            // Нормализуем направление ввода
-            Vector3 inputDirection = new Vector3(_input.move.x, 0.0f, _input.move.y).normalized;
+        if (moveDirection.sqrMagnitude > _threshold && !IsShooterBodyRotationActive)
+        {
+            RotateTowardsMoveDirection(moveDirection);
+        }
 
-            // примечание: оператор != Vector2 использует приближение, поэтому он не подвержен ошибкам плавающей точки и дешевле, чем вычисление magnitude
-            // если есть ввод перемещения, поворачиваем игрока при движении
-            if (_input.move != Vector2.zero)
-            {
-                _targetRotation = Mathf.Atan2(inputDirection.x, inputDirection.z) * Mathf.Rad2Deg +
-                                  _mainCamera.transform.eulerAngles.y;
-                float rotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, _targetRotation, ref _rotationVelocity,
-                    RotationSmoothTime);
+        _controller.Move(moveDirection * (_speed * Time.deltaTime) + Vector3.up * (_verticalVelocity * Time.deltaTime));
 
-                // Поворачиваемся в направлении ввода относительно позиции камеры
-                transform.rotation = Quaternion.Euler(0.0f, rotation, 0.0f);
-            }
+        if (_hasAnimator)
+        {
+            _animator.SetFloat(_animIDSpeed, _animationBlend);
+            _animator.SetFloat(_animIDMotionSpeed, inputMagnitude * directionalSpeedMultiplier);
+        }
 
-
-            Vector3 targetDirection = Quaternion.Euler(0.0f, _targetRotation, 0.0f) * Vector3.forward;
-
-            // Перемещаем игрока
-            _controller.Move(targetDirection.normalized * (_speed * Time.deltaTime) +
-                             new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
-
-            // Обновляем аниматор, если используется персонаж
-            if (_hasAnimator)
-            {
-                _animator.SetFloat(_animIDSpeed, _animationBlend);
-                _animator.SetFloat(_animIDMotionSpeed, inputMagnitude);
-                
-            }
-
-        // === РАСХОД СТАМИНЫ ПРИ СПРИНТЕ ===
         if (_currentMovementState == MovementState.Sprinting &&
             _input.move != Vector2.zero &&
             _stats != null)
@@ -374,7 +421,6 @@ using UnityEngine.InputSystem;
 
             if (!_stats.UseStamina(staminaToConsume))
             {
-                // Если стамины не хватило — принудительно переводим в обычный бег
                 StopSprinting();
             }
             else
@@ -384,35 +430,79 @@ using UnityEngine.InputSystem;
         }
     }
 
-        private void JumpAndGravity()
+    private Vector3 GetCameraRelativeMoveDirection(Vector2 moveInput)
+    {
+        if (moveInput == Vector2.zero)
         {
-            bool staminaActionsLocked = _stats != null && _stats.AreStaminaActionsLocked;
+            return Vector3.zero;
+        }
 
-            if (Grounded)
+        Transform referenceTransform = _mainCamera != null ? _mainCamera.transform : transform;
+
+        Vector3 forward = referenceTransform.forward;
+        Vector3 right = referenceTransform.right;
+        forward.y = 0f;
+        right.y = 0f;
+        forward.Normalize();
+        right.Normalize();
+
+        Vector3 direction = forward * moveInput.y + right * moveInput.x;
+        return direction.sqrMagnitude > _threshold ? direction.normalized : Vector3.zero;
+    }
+
+    private float GetDirectionalSpeedMultiplier(Vector2 moveInput)
+    {
+        if (!IsPrecisionMovementActive || moveInput == Vector2.zero)
+        {
+            return 1f;
+        }
+
+        float strafeMultiplier = Mathf.Lerp(1f, AimStrafeSpeedMultiplier, Mathf.Abs(moveInput.x));
+        float backwardMultiplier = moveInput.y < 0f
+            ? Mathf.Lerp(1f, AimBackwardSpeedMultiplier, Mathf.Abs(moveInput.y))
+            : 1f;
+
+        return Mathf.Min(strafeMultiplier, backwardMultiplier);
+    }
+
+    private void RotateTowardsMoveDirection(Vector3 moveDirection)
+    {
+        _targetRotation = Mathf.Atan2(moveDirection.x, moveDirection.z) * Mathf.Rad2Deg;
+
+        float rotation = Mathf.SmoothDampAngle(
+            transform.eulerAngles.y,
+            _targetRotation,
+            ref _moveRotationVelocity,
+            RotationSmoothTime);
+
+        transform.rotation = Quaternion.Euler(0.0f, rotation, 0.0f);
+    }
+
+    private void JumpAndGravity()
+    {
+        bool staminaActionsLocked = _stats != null && _stats.AreStaminaActionsLocked;
+
+        if (Grounded)
+        {
+            _fallTimeoutDelta = FallTimeout;
+
+            if (_hasAnimator)
             {
-                // Сбрасываем таймер таймаута падения
-                _fallTimeoutDelta = FallTimeout;
+                _animator.SetBool(_animIDJump, false);
+                _animator.SetBool(_animIDFreeFall, false);
+            }
 
-                // Обновляем аниматор, если используется персонаж
-                if (_hasAnimator)
-                {
-                    _animator.SetBool(_animIDJump, false);
-                    _animator.SetBool(_animIDFreeFall, false);
-                }
-
-                // Останавливаем бесконечное падение скорости, когда персонаж на земле
-                if (_verticalVelocity < 0.0f)
-                {
-                    _verticalVelocity = -2f;
-                }
+            if (_verticalVelocity < 0.0f)
+            {
+                _verticalVelocity = -2f;
+            }
 
             if (staminaActionsLocked)
             {
                 StopJumping();
             }
 
-            // Прыжок
-            if (!staminaActionsLocked && _input.jump && _jumpTimeoutDelta <= 0.0f)
+            if (!staminaActionsLocked && _input != null && _input.jump && _jumpTimeoutDelta <= 0.0f)
             {
                 if (_stats == null || _stats.UseStamina(_stats.jumpCost))
                 {
@@ -427,99 +517,92 @@ using UnityEngine.InputSystem;
                 }
             }
 
-            // Таймаут прыжка
             if (_jumpTimeoutDelta >= 0.0f)
-                {
-                    _jumpTimeoutDelta -= Time.deltaTime;
-                }
-            }
-            else
             {
-                // Сбрасываем таймер таймаута прыжка
-                _jumpTimeoutDelta = JumpTimeout;
+                _jumpTimeoutDelta -= Time.deltaTime;
+            }
+        }
+        else
+        {
+            _jumpTimeoutDelta = JumpTimeout;
 
-                // Таймаут падения
-                if (_fallTimeoutDelta >= 0.0f)
-                {
-                    _fallTimeoutDelta -= Time.deltaTime;
-                }
-                else
-                {
-                    // Обновляем аниматор, если используется персонаж
-                    if (_hasAnimator)
-                    {
-                        _animator.SetBool(_animIDFreeFall, true);
-                    }
-                }
+            if (_fallTimeoutDelta >= 0.0f)
+            {
+                _fallTimeoutDelta -= Time.deltaTime;
+            }
+            else if (_hasAnimator)
+            {
+                _animator.SetBool(_animIDFreeFall, true);
+            }
 
-                // Если мы не на земле, не прыгаем
+            if (_input != null)
+            {
                 _input.jump = false;
             }
-
-            // Применяем гравитацию с течением времени, если скорость ниже терминальной
-            // (умножаем на дельту времени дважды для линейного ускорения с течением времени)
-            if (_verticalVelocity < _terminalVelocity)
-            {
-                _verticalVelocity += Gravity * Time.deltaTime;
-            }
         }
 
-        private static float ClampAngle(float lfAngle, float lfMin, float lfMax)
+        if (_verticalVelocity < _terminalVelocity)
         {
-            if (lfAngle < -360f) lfAngle += 360f;
-            if (lfAngle > 360f) lfAngle -= 360f;
-            return Mathf.Clamp(lfAngle, lfMin, lfMax);
-        }
-
-        private void OnDrawGizmosSelected()
-        {
-            Color transparentGreen = new Color(0.0f, 1.0f, 0.0f, 0.35f);
-            Color transparentRed = new Color(1.0f, 0.0f, 0.0f, 0.35f);
-
-            if (Grounded) Gizmos.color = transparentGreen;
-            else Gizmos.color = transparentRed;
-
-            // При выборе рисуем гизмо в позиции коллайдера касания земли и с радиусом, соответствующим ему
-            Gizmos.DrawSphere(
-                new Vector3(transform.position.x, transform.position.y - GroundedOffset, transform.position.z),
-                GroundedRadius);
-        }
-
-
-        /// <summary>
-        /// Вызывается из анимации при шаге. Воспроизводит случайный звук шага.
-        /// </summary>
-        /// <param name="animationEvent">Данные события анимации</param>
-        private void OnFootstep(AnimationEvent animationEvent)
-        {
-            if (LandingAudioClip == null) return;
-
-            // Воспроизводим звук только если вес анимации выше 0.5 (чтобы избежать дублей при переходах)
-            if (animationEvent.animatorClipInfo.weight > 0.5f)
-            {
-                if (FootstepAudioClips.Length > 0)
-                {
-                    // Выбираем случайный звук шага из массива
-                    var index = Random.Range(0, FootstepAudioClips.Length);
-                    // Воспроизводим звук в позиции центра коллайдера персонажа
-                    AudioSource.PlayClipAtPoint(FootstepAudioClips[index], transform.TransformPoint(_controller.center), FootstepAudioVolume);
-                }
-            }
-        }
-
-
-        /// <summary>
-        /// Вызывается из анимации при приземлении. Воспроизводит звук удара о землю.
-        /// </summary>
-        /// <param name="animationEvent">Данные события анимации</param>
-        private void OnLand(AnimationEvent animationEvent)
-        {
-            if (LandingAudioClip == null) return;
-            // Воспроизводим звук только если вес анимации выше 0.5
-            if (animationEvent.animatorClipInfo.weight > 0.5f)
-            {
-                // Воспроизводим звук приземления в позиции центра коллайдера
-                AudioSource.PlayClipAtPoint(LandingAudioClip, transform.TransformPoint(_controller.center), FootstepAudioVolume);
-            }
+            _verticalVelocity += Gravity * Time.deltaTime;
         }
     }
+
+    private static float ClampAngle(float angle, float min, float max)
+    {
+        if (angle < -360f)
+        {
+            angle += 360f;
+        }
+
+        if (angle > 360f)
+        {
+            angle -= 360f;
+        }
+
+        return Mathf.Clamp(angle, min, max);
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        Color transparentGreen = new Color(0.0f, 1.0f, 0.0f, 0.35f);
+        Color transparentRed = new Color(1.0f, 0.0f, 0.0f, 0.35f);
+
+        Gizmos.color = Grounded ? transparentGreen : transparentRed;
+        Gizmos.DrawSphere(
+            new Vector3(transform.position.x, transform.position.y - GroundedOffset, transform.position.z),
+            GroundedRadius);
+    }
+
+    private void OnFootstep(AnimationEvent animationEvent)
+    {
+        if (FootstepAudioClips == null || FootstepAudioClips.Length == 0 || _controller == null)
+        {
+            return;
+        }
+
+        if (animationEvent.animatorClipInfo.weight > 0.5f)
+        {
+            int index = Random.Range(0, FootstepAudioClips.Length);
+            AudioSource.PlayClipAtPoint(
+                FootstepAudioClips[index],
+                transform.TransformPoint(_controller.center),
+                FootstepAudioVolume);
+        }
+    }
+
+    private void OnLand(AnimationEvent animationEvent)
+    {
+        if (LandingAudioClip == null || _controller == null)
+        {
+            return;
+        }
+
+        if (animationEvent.animatorClipInfo.weight > 0.5f)
+        {
+            AudioSource.PlayClipAtPoint(
+                LandingAudioClip,
+                transform.TransformPoint(_controller.center),
+                FootstepAudioVolume);
+        }
+    }
+}

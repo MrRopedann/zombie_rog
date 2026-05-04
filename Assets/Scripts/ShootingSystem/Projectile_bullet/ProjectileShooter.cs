@@ -14,6 +14,7 @@ public class ProjectileShooter : MonoBehaviour, IShooter
     [SerializeField] private float projectileSpeed = 30f;
     [SerializeField] private float maxAimDistance = 1000f;
     [SerializeField] private LayerMask aimLayerMask;
+    [SerializeField] private float spawnOffset = 0.05f;
 
     private Weapon _weapon;
 
@@ -26,15 +27,27 @@ public class ProjectileShooter : MonoBehaviour, IShooter
 
     public void Shoot()
     {
+        if (shootPoint == null || projectilePool == null || playerCamera == null || _weapon == null)
+        {
+            return;
+        }
+
         Vector3 aimPoint = GetAimPointFromCamera();
-        Vector3 direction = (aimPoint - shootPoint.position).normalized;
+        aimPoint = ResolveMuzzleAimPoint(aimPoint);
+
+        Vector3 direction = aimPoint - shootPoint.position;
+        direction = direction.sqrMagnitude > 0.001f ? direction.normalized : shootPoint.forward;
+        Vector3 spawnPosition = shootPoint.position + direction * spawnOffset;
 
         Projectile projectile = projectilePool.Get();
-        projectile.transform.position = shootPoint.position;
-        projectile.transform.rotation = Quaternion.LookRotation(direction);
+        if (projectile == null)
+        {
+            return;
+        }
 
         projectile.Startup(
             _weapon.Damage,
+            spawnPosition,
             direction,
             projectileSpeed,
             projectilePool,
@@ -46,9 +59,29 @@ public class ProjectileShooter : MonoBehaviour, IShooter
     {
         Ray ray = playerCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
 
-        if(Physics.Raycast(ray, out RaycastHit hit, maxAimDistance, aimLayerMask))
+        if(Physics.Raycast(ray, out RaycastHit hit, maxAimDistance, aimLayerMask, QueryTriggerInteraction.Ignore))
             return hit.point;
 
         return ray.origin + ray.direction * maxAimDistance;
+    }
+
+    private Vector3 ResolveMuzzleAimPoint(Vector3 desiredAimPoint)
+    {
+        Vector3 direction = desiredAimPoint - shootPoint.position;
+        float distance = direction.magnitude;
+
+        if (distance <= 0.001f)
+        {
+            return desiredAimPoint;
+        }
+
+        direction /= distance;
+
+        if (Physics.Raycast(shootPoint.position, direction, out RaycastHit hit, distance, aimLayerMask, QueryTriggerInteraction.Ignore))
+        {
+            return hit.point;
+        }
+
+        return desiredAimPoint;
     }
 }

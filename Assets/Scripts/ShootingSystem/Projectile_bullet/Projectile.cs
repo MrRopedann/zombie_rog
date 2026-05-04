@@ -74,7 +74,7 @@ public class Projectile : MonoBehaviour
         }
     }
 
-    public void Startup(float damage, Vector3 direction, float speed, ProjectilePool pool, float maxLifetime)
+    public void Startup(float damage, Vector3 spawnPosition, Vector3 direction, float speed, ProjectilePool pool, float maxLifetime)
     { 
         _damage = damage;
         _pool = pool;
