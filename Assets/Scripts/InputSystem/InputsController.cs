@@ -13,7 +13,6 @@ using UnityEngine.InputSystem;
 		public bool sprint;
 		public bool walk;
 
-
 		[Header("Настройки движения")]
 		public bool analogMovement;
 
@@ -27,6 +26,10 @@ using UnityEngine.InputSystem;
     public Action OnUse;
     public Action OnOpenInventory;
 
+	public Action OnPlayerFire;
+	public Action OnPlayerSwithcWeapon;
+
+	public InputActions InputAction => _inputAction;
 
     private void OnEnable()
     {
@@ -35,14 +38,31 @@ using UnityEngine.InputSystem;
 
 		_inputAction.Player.Use.performed += OnActionPerformed;
 		_inputAction.Player.OpenInventory.performed += OnOpenInventoryPerformed;
+
+		_inputAction.Shooting.Fire.performed += OnFirePerformed;
+		_inputAction.Shooting.SwitchWeapon.performed += OnSwitchWeaponPerformed;
     }
+
 
     private void OnDisable() 
 	{ 
         _inputAction.Player.Use.performed -= OnActionPerformed;
         _inputAction.Player.OpenInventory.performed -= OnOpenInventoryPerformed;
 
+        _inputAction.Shooting.Fire.performed -= OnFirePerformed;
+        _inputAction.Shooting.SwitchWeapon.performed -= OnSwitchWeaponPerformed;
+
         _inputAction.Disable();
+    }
+
+    private void OnSwitchWeaponPerformed(InputAction.CallbackContext context)
+    {
+		OnPlayerSwithcWeapon?.Invoke();
+    }
+
+    private void OnFirePerformed(InputAction.CallbackContext context)
+    {
+		OnPlayerFire?.Invoke();
     }
 
     private void OnActionPerformed(InputAction.CallbackContext callbackContext)

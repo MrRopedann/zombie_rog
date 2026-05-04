@@ -733,8 +733,8 @@ RectTransform:
   m_GameObject: {fileID: 428407456}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 2, y: 2, z: 2}
-  m_ConstrainProportionsScale: 0
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 1
   m_Children:
   - {fileID: 581178626}
   m_Father: {fileID: 1804561377}
@@ -914,7 +914,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: ac1f07a6d21a2d84b95df40efa740f2e, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 5f3fe3f733cc7e142aeec1caf74f844b, type: 3}
   m_Type: 3
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -990,7 +990,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: ac1f07a6d21a2d84b95df40efa740f2e, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 5f3fe3f733cc7e142aeec1caf74f844b, type: 3}
   m_Type: 3
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -1059,13 +1059,24 @@ MonoBehaviour:
   baseMaxStamina: 100
   baseMaxWeight: 25
   staminaRegenRate: 6
-  staminaRegenDelay: 1.2
+  staminaRegenDelay: 2.5
   sprintCostPerSecond: 18
-  jumpCost: 10
+  jumpCost: 2
   staminaExhaustionLockDuration: 1.2
-  hungerDecreaseRate: 0.05
-  thirstDecreaseRate: 0.1
+  hungerDecreaseRate: 1.75
+  thirstDecreaseRate: 1.75
   staminaDecreaseRate: 0.5
+  lowNeedThresholdPercent: 0.5
+  severeNeedThresholdPercent: 0.25
+  criticalNeedThresholdPercent: 0.05
+  lowNeedStaminaMultiplier: 0.75
+  severeNeedStaminaMultiplier: 0.5
+  severeNeedRegenDelayMultiplier: 2
+  criticalNeedHealthDrainPerSecond: 2
+  sprintHungerCostPerSecond: 0.1
+  sprintThirstCostPerSecond: 0.2
+  jumpHungerCost: 0.35
+  jumpThirstCost: 0.5
   durability:
     baseValue: 1
   agility:
@@ -1272,7 +1283,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: ac1f07a6d21a2d84b95df40efa740f2e, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 5f3fe3f733cc7e142aeec1caf74f844b, type: 3}
   m_Type: 3
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -1340,7 +1351,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: ac1f07a6d21a2d84b95df40efa740f2e, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 5f3fe3f733cc7e142aeec1caf74f844b, type: 3}
   m_Type: 3
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -1457,8 +1468,8 @@ RectTransform:
   m_GameObject: {fileID: 1294163004}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 2, y: 2, z: 2}
-  m_ConstrainProportionsScale: 0
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 1
   m_Children:
   - {fileID: 1397979969}
   m_Father: {fileID: 1804561377}
@@ -1602,7 +1613,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: ac1f07a6d21a2d84b95df40efa740f2e, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 5f3fe3f733cc7e142aeec1caf74f844b, type: 3}
   m_Type: 3
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -1678,7 +1689,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: ac1f07a6d21a2d84b95df40efa740f2e, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 5f3fe3f733cc7e142aeec1caf74f844b, type: 3}
   m_Type: 3
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -1986,7 +1997,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: ac1f07a6d21a2d84b95df40efa740f2e, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 5f3fe3f733cc7e142aeec1caf74f844b, type: 3}
   m_Type: 3
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -2070,7 +2081,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: ac1f07a6d21a2d84b95df40efa740f2e, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 5f3fe3f733cc7e142aeec1caf74f844b, type: 3}
   m_Type: 3
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -2195,7 +2206,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 220, y: 60}
+  m_SizeDelta: {x: 145, y: 35}
   m_Pivot: {x: 0, y: 0}
 --- !u!114 &1804561378
 MonoBehaviour:
@@ -2248,14 +2259,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Padding:
-    m_Left: 0
-    m_Right: 0
-    m_Top: 0
-    m_Bottom: 0
-  m_ChildAlignment: 4
+    m_Left: 5
+    m_Right: 5
+    m_Top: 3
+    m_Bottom: 2
+  m_ChildAlignment: 1
   m_StartCorner: 2
   m_StartAxis: 0
-  m_CellSize: {x: 55, y: 30.5}
+  m_CellSize: {x: 35, y: 0}
   m_Spacing: {x: 0, y: 0}
   m_Constraint: 1
   m_ConstraintCount: 4
@@ -2433,8 +2444,8 @@ RectTransform:
   m_GameObject: {fileID: 1959969937}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 2, y: 2, z: 2}
-  m_ConstrainProportionsScale: 0
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 1
   m_Children:
   - {fileID: 1491622248}
   m_Father: {fileID: 1804561377}
@@ -2469,7 +2480,7 @@ RectTransform:
   m_GameObject: {fileID: 1972493057}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 2, y: 2, z: 2}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 1
   m_Children:
   - {fileID: 570732994}
