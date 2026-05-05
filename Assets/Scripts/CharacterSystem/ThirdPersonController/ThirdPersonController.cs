@@ -1,3 +1,4 @@
+using Cinemachine;
 using UnityEngine;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
@@ -94,8 +95,28 @@ public class ThirdPersonController : MonoBehaviour
     [Tooltip("Для блокировки позиции камеры по всем осям")]
     public bool LockCameraPosition = false;
 
+    [Header("TPS Camera Rig")]
+    [SerializeField] private CinemachineVirtualCamera followVirtualCamera;
+    [SerializeField] private Cinemachine3rdPersonFollow thirdPersonFollow;
+    [SerializeField] private bool captureCurrentCameraAsNormal = true;
+    [SerializeField] private Vector3 normalCameraTargetOffset = new Vector3(0f, 1.375f, 0f);
+    [SerializeField] private Vector3 aimCameraTargetOffset = new Vector3(0f, 1.55f, 0f);
+    [SerializeField] private Vector3 normalShoulderOffset = new Vector3(1f, 0f, 0f);
+    [SerializeField] private Vector3 aimShoulderOffset = new Vector3(1.15f, 0.1f, 0f);
+    [SerializeField] [Range(-1f, 1f)] private float normalCameraSide = 0.6f;
+    [SerializeField] [Range(-1f, 1f)] private float aimCameraSide = 0.85f;
+    [SerializeField] [Min(0.5f)] private float normalCameraDistance = 4f;
+    [SerializeField] [Min(0.5f)] private float aimCameraDistance = 2.75f;
+    [SerializeField] [Range(1f, 120f)] private float normalFieldOfView = 40f;
+    [SerializeField] [Range(1f, 120f)] private float aimFieldOfView = 34f;
+    [SerializeField] private Vector3 normalCameraDamping = new Vector3(0.1f, 0.25f, 0.3f);
+    [SerializeField] private Vector3 aimCameraDamping = new Vector3(0.06f, 0.12f, 0.16f);
+    [SerializeField] [Min(0.1f)] private float cameraSettingsBlendSpeed = 12f;
+    [SerializeField] [Range(0.0f, 0.2f)] private float hipFireRotationSmoothTime = 0.08f;
+
     private float _cinemachineTargetYaw;
     private float _cinemachineTargetPitch;
+    private float _cameraAimBlend;
 
     private float _speed;
     private float _animationBlend;
@@ -139,6 +160,7 @@ public class ThirdPersonController : MonoBehaviour
     }
 
     private bool IsShooterBodyRotationActive => _input != null && _input.IsShooterModeActive;
+    private bool IsAimCameraActive => _input != null && _input.aim;
     private bool IsPrecisionMovementActive => _input != null && (_input.aim || _input.fireHeld);
 
     private void Awake()
@@ -175,6 +197,11 @@ public class ThirdPersonController : MonoBehaviour
         _playerInput = GetComponent<PlayerInput>();
 #endif
 
+        ResolveTpsCameraRig();
+        CaptureNormalCameraSettings();
+        _cameraAimBlend = IsAimCameraActive ? 1f : 0f;
+        ApplyTpsCameraSettings(_cameraAimBlend);
+
         AssignAnimationIDs();
 
         _jumpTimeoutDelta = JumpTimeout;
@@ -194,6 +221,105 @@ public class ThirdPersonController : MonoBehaviour
     private void LateUpdate()
     {
         CameraRotation();
+        UpdateTpsCameraRig();
+    }
+
+    private void ResolveTpsCameraRig()
+    {
+        if (followVirtualCamera == null)
+        {
+            followVirtualCamera = GetComponentInChildren<CinemachineVirtualCamera>(true);
+        }
+
+        if (thirdPersonFollow == null && followVirtualCamera != null)
+        {
+            thirdPersonFollow = followVirtualCamera.GetCinemachineComponent<Cinemachine3rdPersonFollow>();
+        }
+
+        if (thirdPersonFollow == null)
+        {
+            thirdPersonFollow = GetComponentInChildren<Cinemachine3rdPersonFollow>(true);
+        }
+    }
+
+    private void CaptureNormalCameraSettings()
+    {
+        if (!captureCurrentCameraAsNormal)
+        {
+            return;
+        }
+
+        if (CinemachineCameraTarget != null)
+        {
+            normalCameraTargetOffset = CinemachineCameraTarget.transform.localPosition;
+        }
+
+        if (followVirtualCamera != null)
+        {
+            normalFieldOfView = followVirtualCamera.m_Lens.FieldOfView;
+        }
+
+        if (thirdPersonFollow == null)
+        {
+            return;
+        }
+
+        normalShoulderOffset = thirdPersonFollow.ShoulderOffset;
+        normalCameraSide = thirdPersonFollow.CameraSide;
+        normalCameraDistance = thirdPersonFollow.CameraDistance;
+        normalCameraDamping = thirdPersonFollow.Damping;
+    }
+
+    private void UpdateTpsCameraRig()
+    {
+        float targetBlend = IsAimCameraActive ? 1f : 0f;
+        float blendStep = 1f - Mathf.Exp(-cameraSettingsBlendSpeed * Time.deltaTime);
+        _cameraAimBlend = Mathf.Lerp(_cameraAimBlend, targetBlend, blendStep);
+
+        ApplyTpsCameraSettings(_cameraAimBlend);
+    }
+
+    private void ApplyTpsCameraSettings(float aimBlend)
+    {
+        aimBlend = Mathf.Clamp01(aimBlend);
+
+        if (CinemachineCameraTarget != null)
+        {
+            CinemachineCameraTarget.transform.localPosition = Vector3.Lerp(
+                normalCameraTargetOffset,
+                aimCameraTargetOffset,
+                aimBlend);
+        }
+
+        if (followVirtualCamera != null)
+        {
+            followVirtualCamera.m_Lens.FieldOfView = Mathf.Lerp(
+                normalFieldOfView,
+                aimFieldOfView,
+                aimBlend);
+        }
+
+        if (thirdPersonFollow == null)
+        {
+            return;
+        }
+
+        thirdPersonFollow.ShoulderOffset = Vector3.Lerp(
+            normalShoulderOffset,
+            aimShoulderOffset,
+            aimBlend);
+        thirdPersonFollow.Damping = Vector3.Lerp(
+            normalCameraDamping,
+            aimCameraDamping,
+            aimBlend);
+        thirdPersonFollow.CameraSide = Mathf.Lerp(
+            normalCameraSide,
+            aimCameraSide,
+            aimBlend);
+        thirdPersonFollow.CameraDistance = Mathf.Lerp(
+            normalCameraDistance,
+            aimCameraDistance,
+            aimBlend);
     }
 
     private void AssignAnimationIDs()
@@ -231,6 +357,35 @@ public class ThirdPersonController : MonoBehaviour
             return;
         }
 
+        UpdateCameraYawPitchFromInput();
+
+        if (!IsShooterBodyRotationActive)
+        {
+            _wasRotateBodyMode = false;
+            _aimRotationVelocity = 0f;
+
+            SetCameraTargetWorldRotation();
+            return;
+        }
+
+        if (!_wasRotateBodyMode)
+        {
+            _wasRotateBodyMode = true;
+            _aimRotationVelocity = 0f;
+        }
+
+        float bodyYaw = Mathf.SmoothDampAngle(
+            transform.eulerAngles.y,
+            _cinemachineTargetYaw,
+            ref _aimRotationVelocity,
+            GetBodyRotationSmoothTime());
+
+        transform.rotation = Quaternion.Euler(0f, bodyYaw, 0f);
+        SetCameraTargetWorldRotation();
+    }
+
+    private void UpdateCameraYawPitchFromInput()
+    {
         if (_input.look.sqrMagnitude >= _threshold && !LockCameraPosition)
         {
             float deltaTimeMultiplier = IsCurrentDeviceMouse ? 1.0f : Time.deltaTime;
@@ -241,37 +396,19 @@ public class ThirdPersonController : MonoBehaviour
 
         _cinemachineTargetYaw = ClampAngle(_cinemachineTargetYaw, float.MinValue, float.MaxValue);
         _cinemachineTargetPitch = ClampAngle(_cinemachineTargetPitch, BottomClamp, TopClamp);
+    }
 
-        if (!IsShooterBodyRotationActive)
-        {
-            _wasRotateBodyMode = false;
-            _aimRotationVelocity = 0f;
-
-            CinemachineCameraTarget.transform.rotation = Quaternion.Euler(
-                _cinemachineTargetPitch + CameraAngleOverride,
-                _cinemachineTargetYaw,
-                0.0f);
-            return;
-        }
-
-        if (!_wasRotateBodyMode)
-        {
-            _cinemachineTargetYaw = transform.eulerAngles.y;
-            _wasRotateBodyMode = true;
-        }
-
-        CinemachineCameraTarget.transform.localRotation = Quaternion.Euler(
+    private void SetCameraTargetWorldRotation()
+    {
+        CinemachineCameraTarget.transform.rotation = Quaternion.Euler(
             _cinemachineTargetPitch + CameraAngleOverride,
-            0f,
-            0.0f);
-
-        float bodyYaw = Mathf.SmoothDampAngle(
-            transform.eulerAngles.y,
             _cinemachineTargetYaw,
-            ref _aimRotationVelocity,
-            AimRotationSmoothTime);
+            0.0f);
+    }
 
-        transform.rotation = Quaternion.Euler(0f, bodyYaw, 0f);
+    private float GetBodyRotationSmoothTime()
+    {
+        return IsAimCameraActive ? AimRotationSmoothTime : hipFireRotationSmoothTime;
     }
 
     private void UpdateMovementState()
@@ -288,7 +425,7 @@ public class ThirdPersonController : MonoBehaviour
             return;
         }
 
-        bool wantsToSprint = !IsPrecisionMovementActive && _input.sprint && _input.move != Vector2.zero;
+        bool wantsToSprint = !IsShooterBodyRotationActive && _input.sprint && _input.move != Vector2.zero;
 
         if (wantsToSprint)
         {
@@ -437,17 +574,27 @@ public class ThirdPersonController : MonoBehaviour
             return Vector3.zero;
         }
 
-        Transform referenceTransform = _mainCamera != null ? _mainCamera.transform : transform;
-
-        Vector3 forward = referenceTransform.forward;
-        Vector3 right = referenceTransform.right;
-        forward.y = 0f;
-        right.y = 0f;
-        forward.Normalize();
-        right.Normalize();
+        Quaternion cameraYaw = Quaternion.Euler(0f, GetCameraReferenceYaw(), 0f);
+        Vector3 forward = cameraYaw * Vector3.forward;
+        Vector3 right = cameraYaw * Vector3.right;
 
         Vector3 direction = forward * moveInput.y + right * moveInput.x;
         return direction.sqrMagnitude > _threshold ? direction.normalized : Vector3.zero;
+    }
+
+    private float GetCameraReferenceYaw()
+    {
+        if (CinemachineCameraTarget != null)
+        {
+            return _cinemachineTargetYaw;
+        }
+
+        if (_mainCamera != null)
+        {
+            return _mainCamera.transform.eulerAngles.y;
+        }
+
+        return transform.eulerAngles.y;
     }
 
     private float GetDirectionalSpeedMultiplier(Vector2 moveInput)

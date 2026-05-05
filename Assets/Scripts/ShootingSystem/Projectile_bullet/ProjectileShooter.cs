@@ -8,21 +8,35 @@ public class ProjectileShooter : MonoBehaviour, IShooter
     [Header("Reference Settings")]
     [SerializeField] private Camera playerCamera;
     [SerializeField] private Transform shootPoint;
+    [SerializeField] private Transform ownerRoot;
     [SerializeField] private ProjectilePool projectilePool;
 
     [Header("Projectile Settings")]
     [SerializeField] private float projectileSpeed = 30f;
     [SerializeField] private float maxAimDistance = 1000f;
     [SerializeField] private LayerMask aimLayerMask;
+    [SerializeField] [Min(0f)] private float spreadAngle = 0f;
     [SerializeField] private float spawnOffset = 0.05f;
+    [SerializeField] private bool debugDraw = true;
 
     private Weapon _weapon;
+    private Transform _resolvedOwnerRoot;
 
     public void Awake()
     {
         _weapon = GetComponent<Weapon>();
+
         if(playerCamera == null)
+        {
             playerCamera = Camera.main;
+        }
+
+        if (shootPoint == null)
+        {
+            shootPoint = transform;
+        }
+
+        _resolvedOwnerRoot = ShooterAimUtility.ResolveOwnerRoot(transform, ownerRoot);
     }
 
     public void Shoot()
@@ -32,11 +46,17 @@ public class ProjectileShooter : MonoBehaviour, IShooter
             return;
         }
 
-        Vector3 aimPoint = GetAimPointFromCamera();
-        aimPoint = ResolveMuzzleAimPoint(aimPoint);
+        Vector3 aimPoint = GetAimPointFromCamera(out Ray cameraAimRay);
+        aimPoint = ShooterAimUtility.ResolveMuzzleAimPoint(
+            shootPoint.position,
+            aimPoint,
+            aimLayerMask,
+            _resolvedOwnerRoot);
 
-        Vector3 direction = aimPoint - shootPoint.position;
-        direction = direction.sqrMagnitude > 0.001f ? direction.normalized : shootPoint.forward;
+        Vector3 direction = ShooterAimUtility.GetDirectionToAimPoint(
+            shootPoint.position,
+            aimPoint,
+            cameraAimRay.direction);
         Vector3 spawnPosition = shootPoint.position + direction * spawnOffset;
 
         Projectile projectile = projectilePool.Get();
@@ -53,35 +73,26 @@ public class ProjectileShooter : MonoBehaviour, IShooter
             projectilePool,
             projectilePool.MaxLifetime
             );
+
+        if (debugDraw)
+        {
+            Debug.DrawLine(shootPoint.position, aimPoint, Color.yellow, 0.2f);
+        }
     }
 
     public Vector3 GetAimPointFromCamera()
     {
-        Ray ray = playerCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
-
-        if(Physics.Raycast(ray, out RaycastHit hit, maxAimDistance, aimLayerMask, QueryTriggerInteraction.Ignore))
-            return hit.point;
-
-        return ray.origin + ray.direction * maxAimDistance;
+        return GetAimPointFromCamera(out Ray unusedAimRay);
     }
 
-    private Vector3 ResolveMuzzleAimPoint(Vector3 desiredAimPoint)
+    private Vector3 GetAimPointFromCamera(out Ray aimRay)
     {
-        Vector3 direction = desiredAimPoint - shootPoint.position;
-        float distance = direction.magnitude;
-
-        if (distance <= 0.001f)
-        {
-            return desiredAimPoint;
-        }
-
-        direction /= distance;
-
-        if (Physics.Raycast(shootPoint.position, direction, out RaycastHit hit, distance, aimLayerMask, QueryTriggerInteraction.Ignore))
-        {
-            return hit.point;
-        }
-
-        return desiredAimPoint;
+        return ShooterAimUtility.GetCameraAimPoint(
+            playerCamera,
+            maxAimDistance,
+            aimLayerMask,
+            _resolvedOwnerRoot,
+            spreadAngle,
+            out aimRay);
     }
 }

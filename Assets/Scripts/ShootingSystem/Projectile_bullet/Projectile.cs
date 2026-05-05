@@ -26,21 +26,20 @@ public class Projectile : MonoBehaviour
 
     private void OnCollisionEnter(Collision collision)
     {
-        ContactPoint contact = collision.contacts[0];
+        ContactPoint contact = collision.contactCount > 0
+            ? collision.GetContact(0)
+            : default;
 
         Vector3 hitPoint = contact.point;
         Vector3 hitNormal = contact.normal;
 
-        BaseDamagable damageable = collision.collider.GetComponent<BaseDamagable>();
-
-        if (damageable == null)
+        if (collision.contactCount == 0)
         {
-            damageable = collision.collider.GetComponentInParent<BaseDamagable>();
-            if (damageable == null)
-            {
-                damageable = collision.collider.GetComponentInChildren<BaseDamagable>();
-            }
+            hitPoint = transform.position;
+            hitNormal = -transform.forward;
         }
+
+        BaseDamagable damageable = ShooterAimUtility.FindDamageable(collision.collider);
 
         if(damageable != null)
         {
@@ -81,9 +80,17 @@ public class Projectile : MonoBehaviour
         _maxLifetime = maxLifetime;
         _timeElapsed = 0;
 
-        _rigidbody.velocity  = Vector3.zero;
+        if (_rigidbody == null)
+        {
+            _rigidbody = GetComponent<Rigidbody>();
+        }
 
-        _rigidbody.AddForce(direction * speed, ForceMode.Impulse);
+        direction = direction.sqrMagnitude > 0.001f ? direction.normalized : transform.forward;
+        transform.SetPositionAndRotation(spawnPosition, Quaternion.LookRotation(direction));
+
+        _rigidbody.velocity = Vector3.zero;
+        _rigidbody.angularVelocity = Vector3.zero;
+        _rigidbody.velocity = direction * speed;
 
     }
 

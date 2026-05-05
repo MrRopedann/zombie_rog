@@ -20,6 +20,7 @@ TagManager:
   - Carpet
   - Concrete
   - WorldItem
+  - Dirt
   layers:
   - Default
   - TransparentFX

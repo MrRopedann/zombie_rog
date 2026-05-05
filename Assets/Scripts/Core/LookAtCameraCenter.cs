@@ -7,6 +7,7 @@ public class LookAtCameraCenter : MonoBehaviour
     [Header("References")]
     [SerializeField] private Camera _camera;
     [SerializeField] private InputsController _inputsController;
+    [SerializeField] private Transform ownerRoot;
 
     [Header("Rotation Settings")]
     [SerializeField] private float rotationSpeed = 15f;
@@ -18,6 +19,7 @@ public class LookAtCameraCenter : MonoBehaviour
     [SerializeField] private LayerMask aimLayerMask;
 
     private Quaternion _defaultLocalRotation;
+    private Transform _resolvedOwnerRoot;
 
     private void Awake()
     {
@@ -30,6 +32,8 @@ public class LookAtCameraCenter : MonoBehaviour
         {
             _inputsController = GetComponentInParent<InputsController>();
         }
+
+        _resolvedOwnerRoot = ShooterAimUtility.ResolveOwnerRoot(transform, ownerRoot);
     }
 
     private void LateUpdate()
@@ -39,7 +43,7 @@ public class LookAtCameraCenter : MonoBehaviour
             return;
         }
 
-        if (rotateOnlyWhileAiming && (_inputsController == null || !_inputsController.aim))
+        if (rotateOnlyWhileAiming && !ShouldRotateToAim())
         {
             ResetToDefaultRotation();
             return;
@@ -51,13 +55,14 @@ public class LookAtCameraCenter : MonoBehaviour
 
     private Vector3 GetAimPoint()
     {
-        Ray ray = _camera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
-
-        if (Physics.Raycast(ray, out RaycastHit hit, maxAimDistance, aimLayerMask))
-        { 
-            return hit.point;
-        }
-        return ray.origin + ray.direction * maxAimDistance;
+        Ray unusedAimRay;
+        return ShooterAimUtility.GetCameraAimPoint(
+            _camera,
+            maxAimDistance,
+            aimLayerMask,
+            _resolvedOwnerRoot,
+            0f,
+            out unusedAimRay);
     }
 
     private void TurnedTowards(Vector3 targetPoint)
@@ -95,5 +100,10 @@ public class LookAtCameraCenter : MonoBehaviour
         {
             transform.localRotation = _defaultLocalRotation;
         }
+    }
+
+    private bool ShouldRotateToAim()
+    {
+        return _inputsController != null && _inputsController.IsShooterModeActive;
     }
 }

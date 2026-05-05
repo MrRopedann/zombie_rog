@@ -17,15 +17,25 @@ public class ProjectilePool : MonoBehaviour
     {
         for (int i = 0; i < poolSize; i++)
         {
-            Create();
+            if (Create() == null)
+            {
+                break;
+            }
         }
     }
 
-    private void Create()
+    private Projectile Create()
     {
-        Projectile bullet = Instantiate(bulletPrefab);
+        if (bulletPrefab == null)
+        {
+            Debug.LogError($"{nameof(ProjectilePool)} on {name} has no bullet prefab.", this);
+            return null;
+        }
+
+        Projectile bullet = Instantiate(bulletPrefab, transform);
         bullet.gameObject.SetActive(false);
         _pool.Enqueue(bullet);
+        return bullet;
     }
 
     public Projectile Get()
@@ -33,7 +43,11 @@ public class ProjectilePool : MonoBehaviour
         if(_pool.Count == 0)
         {
             Create();
-            Debug.LogError("Projectile pool is empty! Consider increasing the pool size.");
+            Debug.LogWarning("Projectile pool expanded at runtime. Consider increasing the pool size.", this);
+        }
+
+        if (_pool.Count == 0)
+        {
             return null;
         }
 
@@ -45,6 +59,11 @@ public class ProjectilePool : MonoBehaviour
 
     public void ReturnToPool(Projectile projectile)
     { 
+        if (projectile == null)
+        {
+            return;
+        }
+
         projectile.gameObject.SetActive(false);
         _pool.Enqueue(projectile);
     }

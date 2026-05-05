@@ -27,8 +27,10 @@ public class InputsController : MonoBehaviour
 
     [Header("Настройки стрельбы")]
     [SerializeField] private bool addDefaultAimBinding = true;
+    [SerializeField] [Min(0f)] private float shooterModeHoldTime = 0.35f;
 
     private InputActions _inputAction;
+    private float _lastFireInputTime = float.NegativeInfinity;
 
     public Action OnUse;
     public Action OnOpenInventory;
@@ -37,7 +39,8 @@ public class InputsController : MonoBehaviour
     public Action<bool> OnPlayerAimChanged;
 
     public InputActions InputAction => _inputAction;
-    public bool IsShooterModeActive => isRotateBodyInsteadOfCamera || aim || fireHeld;
+    public bool IsRecentFireInput => Time.time - _lastFireInputTime <= shooterModeHoldTime;
+    public bool IsShooterModeActive => isRotateBodyInsteadOfCamera || aim || fireHeld || IsRecentFireInput;
 
     private void OnEnable()
     {
@@ -80,6 +83,7 @@ public class InputsController : MonoBehaviour
 
         SetAimState(false);
         fireHeld = false;
+        _lastFireInputTime = float.NegativeInfinity;
     }
 
     private void EnsureDefaultShooterBindings()
@@ -105,17 +109,24 @@ public class InputsController : MonoBehaviour
     private void OnFireStarted(InputAction.CallbackContext context)
     {
         fireHeld = true;
+        RegisterFireInput();
     }
 
     private void OnFirePerformed(InputAction.CallbackContext context)
     {
         fireHeld = true;
+        RegisterFireInput();
         OnPlayerFire?.Invoke();
     }
 
     private void OnFireCanceled(InputAction.CallbackContext context)
     {
         fireHeld = false;
+    }
+
+    private void RegisterFireInput()
+    {
+        _lastFireInputTime = Time.time;
     }
 
     private void OnAimStarted(InputAction.CallbackContext context)
