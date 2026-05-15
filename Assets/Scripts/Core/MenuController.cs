@@ -6,6 +6,7 @@ public class MenuController : MonoBehaviour
     [Header("Config")]
     [SerializeField] string gameSceneName = "HuntedDead";
     [SerializeField] GameObject settingsPanel;
+    [SerializeField] GameObject characterPanel;
     [SerializeField] GameObject coopMenuPanel;
     [SerializeField] GameObject coopMenuPrefab;
     [SerializeField] Transform coopMenuRoot;
@@ -19,6 +20,16 @@ public class MenuController : MonoBehaviour
     public void OnOpenSettings()
     {
         if (settingsPanel != null) settingsPanel.SetActive(true);
+    }
+
+    public void OnOpenCreateCharacter()
+    {
+        if (characterPanel != null) characterPanel.SetActive(true);
+    }
+
+    public void OnCloseCreateCharacter()
+    {
+        if (characterPanel != null) characterPanel.SetActive(false);
     }
 
     public void OnOpenCoopMenu()
