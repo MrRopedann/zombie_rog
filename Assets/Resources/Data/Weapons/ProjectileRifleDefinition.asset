@@ -1,0 +1,49 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6c05f16964754cf5ae82f59d86b14fa8, type: 3}
+  m_Name: ProjectileRifleDefinition
+  m_EditorClassIdentifier: 
+  weaponID: projectile_rifle
+  displayName: Projectile Rifle
+  weaponPrefab: {fileID: 2826267721502884684, guid: 282ded2852608dc4bb74aa94559f3fc9,
+    type: 3}
+  fireMode: 1
+  fireInterval: 0.2
+  damage: 10
+  ammoPerShot: 1
+  infiniteAmmo: 0
+  infiniteReserveAmmo: 0
+  magazineSize: 30
+  startingMagazineAmmo: -1
+  startingReserveAmmo: 90
+  autoReloadOnEmpty: 1
+  reloadDuration: 1.5
+  dryFireInterval: 0.25
+  range: 1000
+  hitMask:
+    serializedVersion: 2
+    m_Bits: 25
+  spreadAngle: 0
+  projectileSpeed: 30
+  projectileSpawnOffset: 0.05
+  shootSounds:
+  - {fileID: 8300000, guid: 086f2b9007cc265479a416a42775ebec, type: 3}
+  emptyMagazineSounds:
+  - {fileID: 8300000, guid: 989825763963cc14faf0554252c22e7e, type: 3}
+  reloadStartSounds:
+  - {fileID: 8300000, guid: b05d1ba8476f06e4193b7f006110d127, type: 3}
+  reloadCompleteSounds:
+  - {fileID: 8300000, guid: c431cd7fac689d645bc3b9c0cb616225, type: 3}
+  shootVolume: 1
+  emptyVolume: 0.9
+  reloadVolume: 1
+  pitchRandomness: 0.05

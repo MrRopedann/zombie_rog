@@ -81,6 +81,12 @@ public class CharacterStats : MonoBehaviour
     private float staminaExhaustionLockEndTime;
     private NeedPenaltyTier currentNeedPenaltyTier = NeedPenaltyTier.None;
 
+    public event Action OnDeath;
+    public event Action OnRevived;
+    public event Action<float> OnDamaged;
+
+    public bool IsDead { get; private set; }
+
     // Производные максимальные значения
     public float MaxHealth { get; private set; }
     public float MaxArmor { get; private set; }
@@ -120,6 +126,14 @@ public class CharacterStats : MonoBehaviour
 
     private void Update()
     {
+        if (IsDead)
+            return;
+
+        if (currentHealth <= 0f)
+        {
+            Die();
+            return;
+        }
         // Пассивный расход голода и жажды
         ConsumeNeeds(hungerDecreaseRate * Time.deltaTime, thirstDecreaseRate * Time.deltaTime);
 
@@ -271,8 +285,68 @@ public class CharacterStats : MonoBehaviour
 
     public void ChangeHealth(float amount)
     {
+        if (IsDead)
+            return;
+
+        CoopGameplaySync.NotifyPlayerHealthChanging(this, amount);
+
+        float previousHealth = currentHealth;
         currentHealth = Mathf.Clamp(currentHealth + amount, 0f, MaxHealth);
         OnHealthChanged?.Invoke();
+
+        float damageTaken = Mathf.Max(0f, previousHealth - currentHealth);
+        if (damageTaken > 0f && currentHealth > 0f)
+        {
+            OnDamaged?.Invoke(damageTaken);
+        }
+
+        if (currentHealth <= 0f)
+        {
+            Die();
+        }
+    }
+
+    public void ApplyNetworkHealth(float health)
+    {
+        if (IsDead)
+            return;
+
+        currentHealth = Mathf.Clamp(health, 0f, MaxHealth);
+        OnHealthChanged?.Invoke();
+
+        if (currentHealth <= 0f)
+            Die();
+    }
+
+    public void Revive(float health)
+    {
+        if (!IsDead && currentHealth > 0f)
+        {
+            currentHealth = Mathf.Clamp(health, 1f, MaxHealth);
+            OnHealthChanged?.Invoke();
+            return;
+        }
+
+        IsDead = false;
+        currentHealth = Mathf.Clamp(health, 1f, MaxHealth);
+        staminaExhaustionLockEndTime = 0f;
+        currentStamina = Mathf.Max(currentStamina, Mathf.Min(CurrentStaminaLimit, MaxStamina * 0.35f));
+
+        OnHealthChanged?.Invoke();
+        OnStaminaChanged?.Invoke();
+        OnRevived?.Invoke();
+    }
+
+    private void Die()
+    {
+        if (IsDead)
+            return;
+
+        IsDead = true;
+        currentHealth = 0f;
+
+        OnHealthChanged?.Invoke();
+        OnDeath?.Invoke();
     }
 
     public void ChangeHunger(float amount)

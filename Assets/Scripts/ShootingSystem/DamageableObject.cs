@@ -7,6 +7,8 @@ public class DamageableObject : BaseDamagable
 {
     [Header("DamageableObject Settings")]
     [SerializeField] private GameObject hitEffect;
+    [SerializeField] [Min(0f)] private float hitEffectLifetime = 3f;
+    [SerializeField] private bool suppressProjectileImpactEffect = false;
 
     [Header("Destroy Settings")]
     [SerializeField] private bool isDestroyAfterDeath = false;
@@ -15,9 +17,11 @@ public class DamageableObject : BaseDamagable
     [Header("Debug Settings")]
     [SerializeField]private bool isViewDebug = false;
 
+    public override bool SuppressProjectileImpactEffect => suppressProjectileImpactEffect && hitEffect != null;
+
     protected override void TakeDamageCore(float damage)
     {
-        TakeDamage(damage, transform.position, Vector3.up);
+        TakeDamageCore(damage, transform.position, Vector3.up);
     }
 
     protected override void TakeDamageCore(float damage, Vector3 hitPoint, Vector3 hitNormal)
@@ -31,7 +35,11 @@ public class DamageableObject : BaseDamagable
         {
             GameObject effect = Instantiate(hitEffect, hitPoint, Quaternion.LookRotation(hitNormal));
             effect.transform.SetParent(transform);
-            //Destroy(effect,2f); 
+
+            if (hitEffectLifetime > 0f)
+            {
+                Destroy(effect, hitEffectLifetime);
+            }
         }
 
         if (_currentHealth <= 0 )

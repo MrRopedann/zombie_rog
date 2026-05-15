@@ -17,7 +17,7 @@ GameObject:
   m_TagString: Grass
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
+  m_StaticEditorFlags: 8
   m_IsActive: 1
 --- !u!4 &4234678332766698
 Transform:
@@ -120,9 +120,25 @@ PrefabInstance:
       propertyPath: m_Layer
       value: 3
       objectReference: {fileID: 0}
+    - target: {fileID: 1331561944213202, guid: 3a78a12e6c316664ba99a2de22c2ed64, type: 3}
+      propertyPath: m_NavMeshLayer
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1331561944213202, guid: 3a78a12e6c316664ba99a2de22c2ed64, type: 3}
+      propertyPath: m_StaticEditorFlags
+      value: 8
+      objectReference: {fileID: 0}
     - target: {fileID: 1498263049655766, guid: 3a78a12e6c316664ba99a2de22c2ed64, type: 3}
       propertyPath: m_Layer
       value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 1498263049655766, guid: 3a78a12e6c316664ba99a2de22c2ed64, type: 3}
+      propertyPath: m_NavMeshLayer
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1498263049655766, guid: 3a78a12e6c316664ba99a2de22c2ed64, type: 3}
+      propertyPath: m_StaticEditorFlags
+      value: 8
       objectReference: {fileID: 0}
     - target: {fileID: 4119353232308284, guid: 3a78a12e6c316664ba99a2de22c2ed64, type: 3}
       propertyPath: m_RootOrder
@@ -252,6 +268,14 @@ PrefabInstance:
     - target: {fileID: 1757510037709598, guid: f540e57fd9fcf454da50dcd2b8e5e613, type: 3}
       propertyPath: m_TagString
       value: Ground
+      objectReference: {fileID: 0}
+    - target: {fileID: 1757510037709598, guid: f540e57fd9fcf454da50dcd2b8e5e613, type: 3}
+      propertyPath: m_NavMeshLayer
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1757510037709598, guid: f540e57fd9fcf454da50dcd2b8e5e613, type: 3}
+      propertyPath: m_StaticEditorFlags
+      value: 8
       objectReference: {fileID: 0}
     - target: {fileID: 4153114125708994, guid: f540e57fd9fcf454da50dcd2b8e5e613, type: 3}
       propertyPath: m_RootOrder

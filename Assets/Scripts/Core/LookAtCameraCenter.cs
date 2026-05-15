@@ -7,6 +7,7 @@ public class LookAtCameraCenter : MonoBehaviour
     [Header("References")]
     [SerializeField] private Camera _camera;
     [SerializeField] private InputsController _inputsController;
+    [SerializeField] private PlayerWeaponController weaponController;
     [SerializeField] private Transform ownerRoot;
 
     [Header("Rotation Settings")]
@@ -15,8 +16,8 @@ public class LookAtCameraCenter : MonoBehaviour
     [SerializeField] private bool rotateOnlyWhileAiming = true;
 
     [Header("Aim Settings")]
-    [SerializeField] private float maxAimDistance = 1000f;
-    [SerializeField] private LayerMask aimLayerMask;
+    [HideInInspector] [SerializeField] private float maxAimDistance = 1000f;
+    [HideInInspector] [SerializeField] private LayerMask aimLayerMask = ~0;
 
     private Quaternion _defaultLocalRotation;
     private Transform _resolvedOwnerRoot;
@@ -31,6 +32,11 @@ public class LookAtCameraCenter : MonoBehaviour
         if (_inputsController == null)
         {
             _inputsController = GetComponentInParent<InputsController>();
+        }
+
+        if (weaponController == null)
+        {
+            weaponController = GetComponentInParent<PlayerWeaponController>();
         }
 
         _resolvedOwnerRoot = ShooterAimUtility.ResolveOwnerRoot(transform, ownerRoot);
@@ -58,11 +64,35 @@ public class LookAtCameraCenter : MonoBehaviour
         Ray unusedAimRay;
         return ShooterAimUtility.GetCameraAimPoint(
             _camera,
-            maxAimDistance,
-            aimLayerMask,
+            GetMaxAimDistance(),
+            GetAimLayerMask(),
             _resolvedOwnerRoot,
             0f,
             out unusedAimRay);
+    }
+
+    private float GetMaxAimDistance()
+    {
+        Weapon currentWeapon = weaponController != null ? weaponController.CurrentWeapon : null;
+
+        if (currentWeapon != null && currentWeapon.HasDefinition)
+        {
+            return currentWeapon.Range;
+        }
+
+        return Mathf.Max(0.1f, maxAimDistance);
+    }
+
+    private LayerMask GetAimLayerMask()
+    {
+        Weapon currentWeapon = weaponController != null ? weaponController.CurrentWeapon : null;
+
+        if (currentWeapon != null && currentWeapon.HasDefinition)
+        {
+            return currentWeapon.HitMask;
+        }
+
+        return aimLayerMask;
     }
 
     private void TurnedTowards(Vector3 targetPoint)

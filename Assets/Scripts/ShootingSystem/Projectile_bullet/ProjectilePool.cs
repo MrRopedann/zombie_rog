@@ -11,6 +11,7 @@ public class ProjectilePool : MonoBehaviour
 
     private Queue<Projectile> _pool = new Queue<Projectile>();
 
+    public Projectile BulletPrefab => bulletPrefab;
     public float MaxLifetime => maxLifetime;
 
     public void Awake()

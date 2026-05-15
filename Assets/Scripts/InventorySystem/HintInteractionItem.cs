@@ -15,13 +15,24 @@ public class HintInteractionItem : MonoBehaviour
     private CanvasGroup _canvasGroup;
     private Coroutine _fadeCoroutine;
 
+    public void ConfigureRuntime(GameObject hintUI, float interactionRange)
+    {
+        if (hintUI != null)
+        {
+            hintInterectionUI = hintUI;
+        }
+
+        interectionRange = Mathf.Max(0.1f, interactionRange);
+    }
+
     private void Start()
     {
+        ResolveHintUI();
+
         if (hintInterectionUI != null)
         {
             _canvasGroup = hintInterectionUI.GetComponent<CanvasGroup>();
 
-            // Если CanvasGroup отсутствует — добавляем автоматически
             if (_canvasGroup == null)
             {
                 _canvasGroup = hintInterectionUI.AddComponent<CanvasGroup>();
@@ -35,7 +46,7 @@ public class HintInteractionItem : MonoBehaviour
         }
         else
         {
-            Debug.LogError("Hint Interaction UI не назначен.");
+            Debug.LogWarning($"Hint Interaction UI РЅРµ РЅР°Р·РЅР°С‡РµРЅ РЅР° {name}. РџРѕРґСЃРєР°Р·РєР° РІР·Р°РёРјРѕРґРµР№СЃС‚РІРёСЏ Р±СѓРґРµС‚ РѕС‚РєР»СЋС‡РµРЅР°.", this);
         }
 
         _interectionTrigger = GetComponent<SphereCollider>();
@@ -47,8 +58,53 @@ public class HintInteractionItem : MonoBehaviour
         }
         else
         {
-            Debug.LogError("Interaction Trigger не найден на объекте.");
+            Debug.LogError("Interaction Trigger РЅРµ РЅР°Р№РґРµРЅ РЅР° РѕР±СЉРµРєС‚Рµ.");
         }
+    }
+
+    private void ResolveHintUI()
+    {
+        if (hintInterectionUI != null)
+        {
+            return;
+        }
+
+        Transform hintTransform = FindChildRecursive(transform, "Hint");
+
+        if (hintTransform != null)
+        {
+            hintInterectionUI = hintTransform.gameObject;
+            return;
+        }
+
+        Canvas canvas = GetComponentInChildren<Canvas>(true);
+
+        if (canvas != null && canvas.gameObject != gameObject)
+        {
+            hintInterectionUI = canvas.gameObject;
+        }
+    }
+
+    private static Transform FindChildRecursive(Transform root, string childName)
+    {
+        for (int i = 0; i < root.childCount; i++)
+        {
+            Transform child = root.GetChild(i);
+
+            if (child.name == childName)
+            {
+                return child;
+            }
+
+            Transform found = FindChildRecursive(child, childName);
+
+            if (found != null)
+            {
+                return found;
+            }
+        }
+
+        return null;
     }
 
     private void OnTriggerEnter(Collider other)

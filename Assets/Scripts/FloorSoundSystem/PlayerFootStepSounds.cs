@@ -53,7 +53,7 @@ public class PlayerFootStepSounds : MonoBehaviour
 
         wasGroundedLastFrame = _characterController.isGrounded;
 
-        // Øàãè òîëüêî êîãäà íà çåìëå + äâèæåìñÿ
+        // Ð¨Ð°Ð³Ð¸ Ñ‚Ð¾Ð»ÑŒÐºÐ¾ ÐºÐ¾Ð³Ð´Ð° Ð½Ð° Ð·ÐµÐ¼Ð»Ðµ + Ð´Ð²Ð¸Ð¶ÐµÐ¼ÑÑ
         if (!_characterController.isGrounded)
         {
             stepTimer = 0f;
@@ -82,11 +82,11 @@ public class PlayerFootStepSounds : MonoBehaviour
     }
     private void HandleJumpSound()
     {
-        // Ïðîèãðûâàåì çâóê ïðûæêà â ìîìåíò îòðûâà îò çåìëè
+        // ÐŸÑ€Ð¾Ð¸Ð³Ñ€Ñ‹Ð²Ð°ÐµÐ¼ Ð·Ð²ÑƒÐº Ð¿Ñ€Ñ‹Ð¶ÐºÐ° Ð² Ð¼Ð¾Ð¼ÐµÐ½Ñ‚ Ð¾Ñ‚Ñ€Ñ‹Ð²Ð° Ð¾Ñ‚ Ð·ÐµÐ¼Ð»Ð¸
         if (!wasGroundedLastFrame || _characterController.isGrounded)
-            return;  // óæå â âîçäóõå èëè âñ¸ åù¸ íà çåìëå
+            return;  // ÑƒÐ¶Ðµ Ð² Ð²Ð¾Ð·Ð´ÑƒÑ…Ðµ Ð¸Ð»Ð¸ Ð²ÑÑ‘ ÐµÑ‰Ñ‘ Ð½Ð° Ð·ÐµÐ¼Ð»Ðµ
 
-        // Äîïîëíèòåëüíàÿ ïðîâåðêà, ÷òî ìû äåéñòâèòåëüíî ïðûãàåì ââåðõ
+        // Ð”Ð¾Ð¿Ð¾Ð»Ð½Ð¸Ñ‚ÐµÐ»ÑŒÐ½Ð°Ñ Ð¿Ñ€Ð¾Ð²ÐµÑ€ÐºÐ°, Ñ‡Ñ‚Ð¾ Ð¼Ñ‹ Ð´ÐµÐ¹ÑÑ‚Ð²Ð¸Ñ‚ÐµÐ»ÑŒÐ½Ð¾ Ð¿Ñ€Ñ‹Ð³Ð°ÐµÐ¼ Ð²Ð²ÐµÑ€Ñ…
         if (_characterController.velocity.y > 0.1f)
         {
             PlayJumpSound();
@@ -104,7 +104,7 @@ public class PlayerFootStepSounds : MonoBehaviour
             return;
         }
 
-        // Âûáîð èíòåðâàëà øàãà
+        // Ð’Ñ‹Ð±Ð¾Ñ€ Ð¸Ð½Ñ‚ÐµÑ€Ð²Ð°Ð»Ð° ÑˆÐ°Ð³Ð°
         if (_inputsController.sprint || _characterController.velocity.magnitude > _thirdPersonController.SprintSpeed)
         {
             currentStepInterval = movementSettings.sprintStepInterVal;
@@ -129,25 +129,31 @@ public class PlayerFootStepSounds : MonoBehaviour
 
     private void PlayerFootStepSound()
     {
+        if (AudioManager.Instance == null)
+            return;
+
         var (surfaceTag, physicMaterial) = _surfaceDetector.GetCurrentSurfaceInfo();
         var surfaceSet = AudioManager.Instance.GetSurfaceSoundSet(surfaceTag, physicMaterial);
+
+        if (surfaceSet == null)
+            return;
 
         AudioClip[] clipsToUse;
 
         if (_inputsController.sprint || _characterController.velocity.magnitude > _thirdPersonController.SprintSpeed)
         {
-            clipsToUse = surfaceSet.sprintSounds.Length > 0 ? surfaceSet.sprintSounds : surfaceSet.footstepSounds;
+            clipsToUse = HasUsableClip(surfaceSet.sprintSounds) ? surfaceSet.sprintSounds : surfaceSet.footstepSounds;
         }
         else if (_inputsController.walk || _characterController.velocity.magnitude > _thirdPersonController.WalkSpeed)
         {
-            clipsToUse = surfaceSet.walkSounds.Length > 0 ? surfaceSet.walkSounds : surfaceSet.footstepSounds;
+            clipsToUse = HasUsableClip(surfaceSet.walkSounds) ? surfaceSet.walkSounds : surfaceSet.footstepSounds;
         }
         else
         {
             clipsToUse = surfaceSet.footstepSounds;
         }
 
-        AudioClip clip = AudioManager.Instance.GetRandomClip(clipsToUse);
+        AudioClip clip = GetRandomClipWithFallback(clipsToUse, surfaceSet.footstepSounds);
 
         if (clip != null)
         {
@@ -160,10 +166,16 @@ public class PlayerFootStepSounds : MonoBehaviour
 
     private void PlayJumpSound()
     {
+        if (AudioManager.Instance == null)
+            return;
+
         var (surfaceTag, physicMaterial) = _surfaceDetector.GetCurrentSurfaceInfo();
         var surfaceSet = AudioManager.Instance.GetSurfaceSoundSet(surfaceTag, physicMaterial);
 
-        AudioClip clip = AudioManager.Instance.GetRandomClip(surfaceSet.jumpSounds);
+        if (surfaceSet == null)
+            return;
+
+        AudioClip clip = GetSurfaceMovementClip(surfaceSet, true);
 
         if (clip != null)
         {
@@ -171,18 +183,20 @@ public class PlayerFootStepSounds : MonoBehaviour
             _audioSource.volume = AudioManager.Instance.jumpVolume * surfaceSet.volumeMultiplier;
             _audioSource.PlayOneShot(clip);
         }
-        else
-        {
-            Debug.LogWarning("No jump sound found for surface: " + surfaceTag);
-        }
     }
 
     private void PlayLandSound()
     {
+        if (AudioManager.Instance == null)
+            return;
+
         var (surfaceTag, physicMaterial) = _surfaceDetector.GetCurrentSurfaceInfo();
         var surfaceSet = AudioManager.Instance.GetSurfaceSoundSet(surfaceTag, physicMaterial);
 
-        AudioClip clip = AudioManager.Instance.GetRandomClip(surfaceSet.landSounds);
+        if (surfaceSet == null)
+            return;
+
+        AudioClip clip = GetSurfaceMovementClip(surfaceSet, false);
 
         if (clip != null)
         {
@@ -190,5 +204,93 @@ public class PlayerFootStepSounds : MonoBehaviour
             _audioSource.volume = AudioManager.Instance.landVolume * surfaceSet.volumeMultiplier;
             _audioSource.PlayOneShot(clip);
         }
+    }
+
+    private AudioClip GetSurfaceMovementClip(AudioManager.SurfaceSoundSet surfaceSet, bool jump)
+    {
+        AudioClip clip = jump
+            ? GetRandomClipWithFallback(surfaceSet.jumpSounds, surfaceSet.landSounds, surfaceSet.footstepSounds)
+            : GetRandomClipWithFallback(surfaceSet.landSounds, surfaceSet.footstepSounds);
+
+        if (clip != null)
+            return clip;
+
+        AudioManager.SurfaceSoundSet defaultSurface = AudioManager.Instance.defaultSurface;
+
+        if (defaultSurface != null && defaultSurface != surfaceSet)
+        {
+            clip = jump
+                ? GetRandomClipWithFallback(defaultSurface.jumpSounds, defaultSurface.landSounds, defaultSurface.footstepSounds)
+                : GetRandomClipWithFallback(defaultSurface.landSounds, defaultSurface.footstepSounds);
+
+            if (clip != null)
+                return clip;
+        }
+
+        return GetAnyConfiguredSurfaceClip(jump);
+    }
+
+    private AudioClip GetAnyConfiguredSurfaceClip(bool jump)
+    {
+        var sets = AudioManager.Instance.surfaceSoundsSets;
+
+        if (sets == null)
+            return null;
+
+        for (int i = 0; i < sets.Count; i++)
+        {
+            AudioManager.SurfaceSoundSet set = sets[i];
+
+            if (set == null)
+                continue;
+
+            AudioClip clip = jump
+                ? GetRandomClipWithFallback(set.jumpSounds, set.landSounds, set.footstepSounds)
+                : GetRandomClipWithFallback(set.landSounds, set.footstepSounds);
+
+            if (clip != null)
+                return clip;
+        }
+
+        return null;
+    }
+
+    private AudioClip GetRandomClipWithFallback(params AudioClip[][] clipGroups)
+    {
+        if (clipGroups == null)
+            return null;
+
+        for (int i = 0; i < clipGroups.Length; i++)
+        {
+            AudioClip clip = GetRandomClip(clipGroups[i]);
+
+            if (clip != null)
+                return clip;
+        }
+
+        return null;
+    }
+
+    private AudioClip GetRandomClip(AudioClip[] clips)
+    {
+        if (clips == null || clips.Length == 0)
+            return null;
+
+        int startIndex = UnityEngine.Random.Range(0, clips.Length);
+
+        for (int offset = 0; offset < clips.Length; offset++)
+        {
+            AudioClip clip = clips[(startIndex + offset) % clips.Length];
+
+            if (clip != null)
+                return clip;
+        }
+
+        return null;
+    }
+
+    private bool HasUsableClip(AudioClip[] clips)
+    {
+        return GetRandomClip(clips) != null;
     }
 }

@@ -1,14 +1,17 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public interface IShooter
 {
-    void Shoot();
+    bool Shoot();
 }
 
 public static class ShooterAimUtility
 {
-    private const int MaxRaycastHits = 32;
+    private const int MaxRaycastHits = 128;
+    private const float HitboxGraceRadius = 0.06f;
     private static readonly RaycastHit[] RaycastHits = new RaycastHit[MaxRaycastHits];
+    private static readonly RaycastHit[] SphereCastHits = new RaycastHit[MaxRaycastHits];
 
     public static Vector3 GetCameraAimPoint(
         Camera camera,
@@ -89,35 +92,306 @@ public static class ShooterAimUtility
 
         direction.Normalize();
 
+        ZombieHitbox.SyncAllActiveHitboxes();
+        Physics.SyncTransforms();
+
         int hitCount = Physics.RaycastNonAlloc(
             origin,
             direction,
             RaycastHits,
             distance,
             hitMask,
-            QueryTriggerInteraction.Ignore);
+            QueryTriggerInteraction.Collide);
+        hitCount = AppendSphereCastHits(origin, direction, distance, hitMask, hitCount);
 
-        float closestDistance = float.PositiveInfinity;
-        bool foundHit = false;
+        System.Array.Sort(RaycastHits, 0, hitCount, RaycastHitDistanceComparer.Instance);
 
-        for (int i = 0; i < hitCount; i++)
+        if (!TryResolvePreferredHit(0, hitCount, ownerRoot, out closestHit))
         {
-            RaycastHit hit = RaycastHits[i];
+            return false;
+        }
 
-            if (hit.collider == null || IsOwnerCollider(hit.collider, ownerRoot))
+        PromoteHitPointToHeadIfNeeded(origin, direction, ref closestHit);
+        return true;
+    }
+
+    private static int AppendSphereCastHits(
+        Vector3 origin,
+        Vector3 direction,
+        float distance,
+        LayerMask hitMask,
+        int hitCount)
+    {
+        if (HitboxGraceRadius <= 0f || hitCount >= MaxRaycastHits)
+        {
+            return hitCount;
+        }
+
+        int remainingCapacity = MaxRaycastHits - hitCount;
+        int sphereHitCount = Physics.SphereCastNonAlloc(
+            origin,
+            HitboxGraceRadius,
+            direction,
+            SphereCastHits,
+            distance,
+            hitMask,
+            QueryTriggerInteraction.Collide);
+
+        if (sphereHitCount <= 0)
+        {
+            return hitCount;
+        }
+
+        int copied = 0;
+
+        for (int i = 0; i < sphereHitCount && copied < remainingCapacity; i++)
+        {
+            RaycastHit hit = SphereCastHits[i];
+
+            if (!IsZombieDamageHit(hit.collider))
             {
                 continue;
             }
 
-            if (hit.distance < closestDistance)
-            {
-                closestDistance = hit.distance;
-                closestHit = hit;
-                foundHit = true;
-            }
+            RaycastHits[hitCount + copied] = hit;
+            copied++;
         }
 
-        return foundHit;
+        return hitCount + copied;
+    }
+
+    private static bool TryResolvePreferredHit(
+        int startIndex,
+        int hitCount,
+        Transform ownerRoot,
+        out RaycastHit preferredHit)
+    {
+        preferredHit = default;
+        bool hasDamageableFallback = false;
+        RaycastHit damageableFallback = default;
+        bool hasFallbackHitbox = false;
+        RaycastHit fallbackHitbox = default;
+        bool hasHitboxCandidate = false;
+        RaycastHit hitboxCandidate = default;
+        int hitboxCandidatePriority = int.MinValue;
+        Transform damageableRoot = null;
+
+        for (int i = startIndex; i < hitCount; i++)
+        {
+            RaycastHit hit = RaycastHits[i];
+
+            if (hit.collider == null || IsOwnerCollider(hit.collider, ownerRoot))
+                continue;
+
+            ZombieHitbox hitbox = hit.collider.GetComponent<ZombieHitbox>();
+
+            if (hitbox != null)
+            {
+                Transform hitboxRoot = hitbox.Owner != null ? hitbox.Owner.transform.root : hit.collider.transform.root;
+
+                if (damageableRoot != null && hitboxRoot != damageableRoot)
+                {
+                    preferredHit = ResolveCurrentPreferredHit(
+                        hasHitboxCandidate,
+                        hitboxCandidate,
+                        hasFallbackHitbox,
+                        fallbackHitbox,
+                        hasDamageableFallback,
+                        damageableFallback);
+                    return true;
+                }
+
+                damageableRoot ??= hitboxRoot;
+
+                if (hitbox.IsFallbackHitbox)
+                {
+                    if (!hasFallbackHitbox)
+                    {
+                        hasFallbackHitbox = true;
+                        fallbackHitbox = hit;
+                    }
+
+                    continue;
+                }
+
+                int hitboxPriority = GetHitboxPriority(hitbox);
+
+                if (!hasHitboxCandidate
+                    || hitboxPriority > hitboxCandidatePriority
+                    || hitboxPriority == hitboxCandidatePriority && hit.distance < hitboxCandidate.distance)
+                {
+                    hasHitboxCandidate = true;
+                    hitboxCandidate = hit;
+                    hitboxCandidatePriority = hitboxPriority;
+                }
+
+                continue;
+            }
+
+            BaseDamagable damageable = FindDamageable(hit.collider);
+
+            if (damageable != null)
+            {
+                Transform currentDamageableRoot = damageable.transform.root;
+
+                if (damageableRoot != null && currentDamageableRoot != damageableRoot)
+                {
+                    preferredHit = ResolveCurrentPreferredHit(
+                        hasHitboxCandidate,
+                        hitboxCandidate,
+                        hasFallbackHitbox,
+                        fallbackHitbox,
+                        hasDamageableFallback,
+                        damageableFallback);
+                    return true;
+                }
+
+                if (!hasDamageableFallback)
+                {
+                    hasDamageableFallback = true;
+                    damageableFallback = hit;
+                    damageableRoot = currentDamageableRoot;
+                }
+
+                continue;
+            }
+
+            if (hit.collider.isTrigger)
+                continue;
+
+            preferredHit = ResolveCurrentPreferredHit(
+                hasHitboxCandidate,
+                hitboxCandidate,
+                hasFallbackHitbox,
+                fallbackHitbox,
+                hasDamageableFallback,
+                damageableFallback,
+                hit);
+            return true;
+        }
+
+        if (TryResolveCurrentPreferredHit(
+            hasHitboxCandidate,
+            hitboxCandidate,
+            hasFallbackHitbox,
+            fallbackHitbox,
+            hasDamageableFallback,
+            damageableFallback,
+            out preferredHit))
+            return true;
+
+        return false;
+    }
+
+    private static void PromoteHitPointToHeadIfNeeded(
+        Vector3 origin,
+        Vector3 direction,
+        ref RaycastHit hit)
+    {
+        if (hit.collider == null)
+        {
+            return;
+        }
+
+        if (!ZombieHitbox.TryPromoteHitPointToHead(
+            hit.collider,
+            origin,
+            direction,
+            hit.point,
+            hit.distance,
+            out Vector3 promotedPoint,
+            out Vector3 promotedNormal,
+            out float promotedDistance))
+        {
+            return;
+        }
+
+        hit.point = promotedPoint;
+        hit.normal = promotedNormal;
+        hit.distance = promotedDistance;
+    }
+
+    private static bool TryResolveCurrentPreferredHit(
+        bool hasHitboxCandidate,
+        RaycastHit hitboxCandidate,
+        bool hasFallbackHitbox,
+        RaycastHit fallbackHitbox,
+        bool hasDamageableFallback,
+        RaycastHit damageableFallback,
+        out RaycastHit preferredHit)
+    {
+        preferredHit = default;
+
+        if (hasHitboxCandidate)
+        {
+            preferredHit = hitboxCandidate;
+            return true;
+        }
+
+        if (hasFallbackHitbox)
+        {
+            preferredHit = fallbackHitbox;
+            return true;
+        }
+
+        if (hasDamageableFallback)
+        {
+            preferredHit = damageableFallback;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static RaycastHit ResolveCurrentPreferredHit(
+        bool hasHitboxCandidate,
+        RaycastHit hitboxCandidate,
+        bool hasFallbackHitbox,
+        RaycastHit fallbackHitbox,
+        bool hasDamageableFallback,
+        RaycastHit damageableFallback,
+        RaycastHit solidFallback = default)
+    {
+        return TryResolveCurrentPreferredHit(
+            hasHitboxCandidate,
+            hitboxCandidate,
+            hasFallbackHitbox,
+            fallbackHitbox,
+            hasDamageableFallback,
+            damageableFallback,
+            out RaycastHit preferredHit)
+            ? preferredHit
+            : solidFallback;
+    }
+
+    private static int GetHitboxPriority(ZombieHitbox hitbox)
+    {
+        return hitbox.BodyPart switch
+        {
+            ZombieHitboxBodyPart.Head => 40,
+            ZombieHitboxBodyPart.Arm => 30,
+            ZombieHitboxBodyPart.Hand => 30,
+            ZombieHitboxBodyPart.Leg => 30,
+            ZombieHitboxBodyPart.Foot => 30,
+            ZombieHitboxBodyPart.Torso => 10,
+            _ => 0
+        };
+    }
+
+    private static bool IsZombieDamageHit(Collider collider)
+    {
+        if (collider == null)
+        {
+            return false;
+        }
+
+        if (collider.GetComponent<ZombieHitbox>() != null)
+        {
+            return true;
+        }
+
+        return collider.GetComponentInParent<ZombieHealth>() != null
+            || collider.GetComponentInChildren<ZombieHealth>() != null;
     }
 
     public static BaseDamagable FindDamageable(Collider collider)
@@ -171,8 +445,18 @@ public static class ShooterAimUtility
         return direction.sqrMagnitude > 0.001f ? direction.normalized : forward;
     }
 
-    private static bool IsOwnerCollider(Collider collider, Transform ownerRoot)
+    public static bool IsOwnerCollider(Collider collider, Transform ownerRoot)
     {
-        return ownerRoot != null && collider.transform.IsChildOf(ownerRoot);
+        return collider != null && ownerRoot != null && collider.transform.IsChildOf(ownerRoot);
+    }
+
+    private sealed class RaycastHitDistanceComparer : IComparer<RaycastHit>
+    {
+        public static readonly RaycastHitDistanceComparer Instance = new();
+
+        public int Compare(RaycastHit x, RaycastHit y)
+        {
+            return x.distance.CompareTo(y.distance);
+        }
     }
 }

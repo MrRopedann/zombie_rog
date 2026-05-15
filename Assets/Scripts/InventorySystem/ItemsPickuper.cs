@@ -17,22 +17,34 @@ public class ItemsPickuper : MonoBehaviour
     private WorldItem _pickupWorldItem = null;
     private bool _isPickingUp;
 
+    private void Awake()
+    {
+        ResolveReferences();
+    }
 
     private void OnEnable()
     {
-        inputs.OnUse += HandlePickup;
-        inputs.OnOpenInventory += HandleOpenInventory;
+        ResolveReferences();
+
+        if (inputs != null)
+        {
+            inputs.OnUse += HandlePickup;
+        }
     }
 
     private void OnDisable()
     {
-        inputs.OnUse -= HandlePickup;
-        inputs.OnOpenInventory -= HandleOpenInventory;
+        if (inputs != null)
+        {
+            inputs.OnUse -= HandlePickup;
+        }
     }
 
     private void OnTriggerEnter(Collider other)
     {
-        if (other.TryGetComponent(out WorldItem item))
+        WorldItem item = other.GetComponent<WorldItem>() ?? other.GetComponentInParent<WorldItem>();
+
+        if (item != null)
         {
             _pickupWorldItem = item;
             _canTryPickup = true;
@@ -44,8 +56,9 @@ public class ItemsPickuper : MonoBehaviour
 
     private void OnTriggerExit(Collider other)
     {
-        if (other.TryGetComponent(out WorldItem item) &&
-            item == _pickupWorldItem)
+        WorldItem item = other.GetComponent<WorldItem>() ?? other.GetComponentInParent<WorldItem>();
+
+        if (item != null && item == _pickupWorldItem)
         {
             _pickupWorldItem = null;
             _canTryPickup = false;
@@ -55,11 +68,6 @@ public class ItemsPickuper : MonoBehaviour
     private void HandlePickup()
     {
         TryPickupItem();
-    }
-
-    private void HandleOpenInventory()
-    {
-        playerInventory.ShowInventoryDebug();
     }
 
     private void TryPickupItem()
@@ -74,12 +82,45 @@ public class ItemsPickuper : MonoBehaviour
 
         var item = _pickupWorldItem;
 
+        if (item.ItemData == null)
+        {
+            Debug.LogWarning($"World item {item.name} has no item data and cannot be picked up.", item);
+            _isPickingUp = false;
+            return;
+        }
+
+        if (CoopGameplaySync.TryPickupWorldItem(item, playerInventory))
+        {
+            _pickupWorldItem = null;
+            _canTryPickup = false;
+            _isPickingUp = false;
+            return;
+        }
+
+        if (playerInventory == null || !playerInventory.AddItem(item.ItemData, item.Amount))
+        {
+            _isPickingUp = false;
+            return;
+        }
+
         _pickupWorldItem = null;
         _canTryPickup = false;
-
-        playerInventory.AddItem(item.ItemData);
+        CoopGameplaySync.NotifyWorldItemPickedUp(item);
         item.Pickup();
 
         _isPickingUp = false;
+    }
+
+    private void ResolveReferences()
+    {
+        if (playerInventory == null)
+        {
+            playerInventory = GetComponent<PlayerInventory>() ?? GetComponentInParent<PlayerInventory>();
+        }
+
+        if (inputs == null)
+        {
+            inputs = GetComponent<InputsController>() ?? GetComponentInParent<InputsController>();
+        }
     }
 }
