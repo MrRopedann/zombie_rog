@@ -14,9 +14,11 @@ public class MenuController : MonoBehaviour
     [SerializeField] GameObject coopMenuPrefab;
     [SerializeField] Transform coopMenuRoot;
     [SerializeField] PlayerCharacterMenuController characterMenuController;
+    [SerializeField] bool loadExistingSaveOnStart = true;
 
     private void Awake()
     {
+        NormalizeGameSceneName();
         EnsureCharacterMenu();
         BindMenuButtons();
         characterMenuController?.ApplyStartupGate();
@@ -32,7 +34,27 @@ public class MenuController : MonoBehaviour
 
     private void StartGameWithSelectedCharacter()
     {
+        if (loadExistingSaveOnStart && GameSaveManager.HasSave() && GameSaveManager.LoadGame())
+            return;
+
+        GameFlowManager flow = GameFlowManager.Instance;
+        if (string.Equals(gameSceneName, flow.BunkerSceneName, StringComparison.Ordinal))
+        {
+            flow.LoadBunker();
+            return;
+        }
+
         SceneManager.LoadScene(gameSceneName);
+    }
+
+    private void NormalizeGameSceneName()
+    {
+        if (string.IsNullOrWhiteSpace(gameSceneName) ||
+            string.Equals(gameSceneName, "HuntedDead", StringComparison.Ordinal) ||
+            string.Equals(gameSceneName, "Demo_City_Universal_RenderPipeline", StringComparison.Ordinal))
+        {
+            gameSceneName = GameFlowManager.Instance.BunkerSceneName;
+        }
     }
 
     public void OnOpenSettings()

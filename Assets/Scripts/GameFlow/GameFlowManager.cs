@@ -108,7 +108,7 @@ public class GameFlowManager : MonoBehaviour
     public void ReturnToBunker()
     {
         if (saveWhenReturningToBunker)
-            GameSaveManager.SaveGame();
+            GameSaveManager.SaveExtractedRaidReturnAndQueueLoad(bunkerSceneName);
 
         GameSessionState.ClearRaid();
         LoadBunker();
@@ -116,8 +116,24 @@ public class GameFlowManager : MonoBehaviour
 
     private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
     {
+        if (scene.name == mainMenuSceneName)
+        {
+            SetMode(GameMode.MainMenu);
+            return;
+        }
+
         if (GameSessionState.CurrentMode == GameMode.RaidLoading)
+        {
             SetMode(GameMode.Raid);
+            EnsureRaidSceneRuntime();
+            return;
+        }
+
+        if (scene.name == bunkerSceneName)
+        {
+            SetMode(GameMode.Bunker);
+            EnsureBunkerSceneRuntime();
+        }
     }
 
     private void SetMode(GameMode mode)
@@ -132,9 +148,79 @@ public class GameFlowManager : MonoBehaviour
             return;
 
         if (SceneManager.GetActiveScene().name == sceneName)
+        {
+            if (sceneName == bunkerSceneName)
+                EnsureBunkerSceneRuntime();
+
             return;
+        }
 
         SceneManager.LoadScene(sceneName);
+    }
+
+    private static void EnsureRaidSceneRuntime()
+    {
+        RaidManager raidManager = FindObjectOfType<RaidManager>(true);
+        GameObject runtimeObject = raidManager != null ? raidManager.gameObject : new GameObject("MVP Raid Runtime");
+
+        if (runtimeObject.GetComponent<ObjectiveManager>() == null && FindObjectOfType<ObjectiveManager>(true) == null)
+            runtimeObject.AddComponent<ObjectiveManager>();
+
+        if (runtimeObject.GetComponent<RaidStatsTracker>() == null && FindObjectOfType<RaidStatsTracker>(true) == null)
+            runtimeObject.AddComponent<RaidStatsTracker>();
+
+        if (runtimeObject.GetComponent<RewardCalculator>() == null && FindObjectOfType<RewardCalculator>(true) == null)
+            runtimeObject.AddComponent<RewardCalculator>();
+
+        if (raidManager == null)
+            raidManager = runtimeObject.AddComponent<RaidManager>();
+
+        if (FindObjectOfType<RaidObjectiveUI>(true) == null)
+            runtimeObject.AddComponent<RaidObjectiveUI>();
+
+        if (FindObjectOfType<RaidResultUI>(true) == null)
+            runtimeObject.AddComponent<RaidResultUI>();
+
+        EnsureGameplayHud(runtimeObject);
+    }
+
+    private static void EnsureBunkerSceneRuntime()
+    {
+        BunkerManager bunkerManager = FindObjectOfType<BunkerManager>(true);
+        LocationSelectionUI locationSelectionUI = FindObjectOfType<LocationSelectionUI>(true);
+
+        if (bunkerManager != null && locationSelectionUI != null)
+            return;
+
+        GameObject runtimeObject = bunkerManager != null ? bunkerManager.gameObject : new GameObject("MVP Bunker Runtime");
+
+        if (bunkerManager == null)
+            runtimeObject.AddComponent<BunkerManager>();
+
+        if (locationSelectionUI == null)
+            runtimeObject.AddComponent<LocationSelectionUI>();
+
+        EnsureGameplayHud(runtimeObject);
+    }
+
+    private static void EnsureGameplayHud(GameObject runtimeObject)
+    {
+        if (runtimeObject == null)
+            return;
+
+        if (FindObjectOfType<UICharacterHUD>(true) == null &&
+            FindObjectOfType<CharacterStats>(true) != null &&
+            runtimeObject.GetComponent<UICharacterHUD>() == null)
+        {
+            runtimeObject.AddComponent<UICharacterHUD>().EnableFallbackLayoutWhenEmpty();
+        }
+
+        if (FindObjectOfType<UIAmmoHUD>(true) == null &&
+            FindObjectOfType<PlayerWeaponController>(true) != null &&
+            runtimeObject.GetComponent<UIAmmoHUD>() == null)
+        {
+            runtimeObject.AddComponent<UIAmmoHUD>();
+        }
     }
 
     private static MissionDefinition ResolveDefaultMission(LocationDefinition location)

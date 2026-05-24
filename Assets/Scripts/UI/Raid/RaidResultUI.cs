@@ -45,7 +45,18 @@ public class RaidResultUI : MonoBehaviour
     private void Continue()
     {
         ApplyRewardIfNeeded();
+        SetOpen(false);
         GameFlowManager.Instance.ReturnToBunker();
+    }
+
+    private void OnDisable()
+    {
+        ReleaseCursorIfNeeded();
+    }
+
+    private void OnDestroy()
+    {
+        ReleaseCursorIfNeeded();
     }
 
     private void ApplyRewardIfNeeded()
@@ -55,9 +66,21 @@ public class RaidResultUI : MonoBehaviour
 
         CharacterProgression progression = FindObjectOfType<CharacterProgression>(true);
         if (progression != null)
+        {
             progression.AddExperience(currentResult.experienceEarned);
+            rewardApplied = true;
+            return;
+        }
 
-        rewardApplied = true;
+        CharacterStats stats = FindPlayerStats();
+        if (stats != null)
+        {
+            stats.AddExperience(currentResult.experienceEarned);
+            rewardApplied = true;
+            return;
+        }
+
+        Debug.LogWarning("RaidResultUI could not find CharacterProgression or CharacterStats to apply raid experience.", this);
     }
 
     private void UpdateTexts()
@@ -66,29 +89,71 @@ public class RaidResultUI : MonoBehaviour
             return;
 
         CharacterProgression progression = FindObjectOfType<CharacterProgression>(true);
-        int currentLevel = progression != null ? progression.CurrentLevel : 1;
+        CharacterStats playerStats = FindPlayerStats();
+        int currentLevel = progression != null
+            ? progression.CurrentLevel
+            : playerStats != null
+                ? Mathf.Max(1, playerStats.playerLevel)
+                : 1;
         int predictedLevel = progression != null
             ? progression.PredictLevelAfterExperience(currentResult.experienceEarned)
-            : currentLevel;
+            : playerStats != null
+                ? PredictLevelAfterExperience(playerStats, currentResult.experienceEarned)
+                : currentLevel;
 
         if (titleText != null)
-            titleText.text = currentResult.extractionSuccess ? "Raid extracted" : "Raid failed";
+            titleText.text = currentResult.extractionSuccess ? "Эвакуация успешна" : "Рейд провален";
 
         if (statsText != null)
         {
             RaidStatsSnapshot stats = currentResult.stats ?? new RaidStatsSnapshot();
             statsText.text =
-                $"Location: {currentResult.locationName}\n" +
-                $"Kills: {stats.kills}\n" +
-                $"Damage dealt: {stats.damageDealt:0}\n" +
-                $"Damage taken: {stats.damageTaken:0}\n" +
-                $"Objectives: {stats.objectivesCompleted}\n" +
-                $"Items looted: {stats.itemsLooted}\n" +
-                $"Allies revived: {stats.alliesRevived}\n" +
-                $"Time: {stats.raidTime:0}s\n" +
-                $"Experience: +{currentResult.experienceEarned}\n" +
-                $"Level: {currentLevel} -> {predictedLevel}";
+                $"Локация: {currentResult.locationName}\n" +
+                $"Убийства: {stats.kills}\n" +
+                $"Урон нанесён: {stats.damageDealt:0}\n" +
+                $"Урон получен: {stats.damageTaken:0}\n" +
+                $"Задачи: {stats.objectivesCompleted}\n" +
+                $"Предметы: {stats.itemsLooted}\n" +
+                $"Возрождения: {stats.alliesRevived}\n" +
+                $"Время: {stats.raidTime:0} с\n" +
+                $"Опыт: +{currentResult.experienceEarned}\n" +
+                $"Уровень: {currentLevel} -> {predictedLevel}";
         }
+    }
+
+    private static CharacterStats FindPlayerStats()
+    {
+        CharacterStats[] allStats = FindObjectsOfType<CharacterStats>(true);
+        if (allStats.Length == 0)
+            return null;
+
+        for (int i = 0; i < allStats.Length; i++)
+        {
+            CharacterStats stats = allStats[i];
+            if (stats != null && stats.CompareTag("Player"))
+                return stats;
+        }
+
+        return allStats[0];
+    }
+
+    private static int PredictLevelAfterExperience(CharacterStats stats, int experienceAmount)
+    {
+        if (stats == null)
+            return 1;
+
+        int predictedLevel = Mathf.Max(1, stats.playerLevel);
+        int predictedExperience = Mathf.Max(0, stats.currentExp) + Mathf.Max(0, experienceAmount);
+        int predictedExperienceToNextLevel = Mathf.Max(1, stats.expToNextLevel);
+
+        while (predictedExperience >= predictedExperienceToNextLevel)
+        {
+            predictedExperience -= predictedExperienceToNextLevel;
+            predictedLevel++;
+            predictedExperienceToNextLevel = Mathf.Max(1, Mathf.RoundToInt(predictedExperienceToNextLevel * 1.4f));
+        }
+
+        return predictedLevel;
     }
 
     private void SetOpen(bool open)
@@ -103,9 +168,17 @@ public class RaidResultUI : MonoBehaviour
         }
         else if (!open && cursorPushed)
         {
-            GameCursorGuard.PopUiCursor();
-            cursorPushed = false;
+            ReleaseCursorIfNeeded();
         }
+    }
+
+    private void ReleaseCursorIfNeeded()
+    {
+        if (!cursorPushed)
+            return;
+
+        GameCursorGuard.PopUiCursor();
+        cursorPushed = false;
     }
 
     private void BuildDefaultUIIfNeeded()
@@ -136,7 +209,7 @@ public class RaidResultUI : MonoBehaviour
         panelRect.pivot = new Vector2(0.5f, 0.5f);
         panelRect.sizeDelta = new Vector2(520f, 520f);
 
-        titleText = CreateText("Title", panel.transform, "Raid result", font, 26, TextAnchor.MiddleCenter);
+        titleText = CreateText("Title", panel.transform, "Итоги рейда", font, 26, TextAnchor.MiddleCenter);
         titleText.fontStyle = FontStyle.Bold;
         titleText.rectTransform.anchorMin = new Vector2(0f, 1f);
         titleText.rectTransform.anchorMax = new Vector2(1f, 1f);
@@ -150,7 +223,7 @@ public class RaidResultUI : MonoBehaviour
         statsText.rectTransform.offsetMin = new Vector2(34f, 88f);
         statsText.rectTransform.offsetMax = new Vector2(-34f, -78f);
 
-        continueButton = CreateButton("Continue", panel.transform, "Continue", font);
+        continueButton = CreateButton("Continue", panel.transform, "Продолжить", font);
         RectTransform buttonRect = continueButton.GetComponent<RectTransform>();
         buttonRect.anchorMin = new Vector2(0.5f, 0f);
         buttonRect.anchorMax = new Vector2(0.5f, 0f);

@@ -46,6 +46,16 @@ public class LocationSelectionUI : MonoBehaviour
         SetOpen(false);
     }
 
+    private void OnDisable()
+    {
+        ReleaseCursorIfNeeded();
+    }
+
+    private void OnDestroy()
+    {
+        ReleaseCursorIfNeeded();
+    }
+
     private void SetOpen(bool open)
     {
         if (uiRoot != null)
@@ -58,8 +68,7 @@ public class LocationSelectionUI : MonoBehaviour
         }
         else if (!open && cursorPushed)
         {
-            GameCursorGuard.PopUiCursor();
-            cursorPushed = false;
+            ReleaseCursorIfNeeded();
         }
     }
 
@@ -127,22 +136,32 @@ public class LocationSelectionUI : MonoBehaviour
         if (selectedLocation == null)
             return;
 
+        Close();
         GameFlowManager.Instance.StartRaid(selectedLocation);
+    }
+
+    private void ReleaseCursorIfNeeded()
+    {
+        if (!cursorPushed)
+            return;
+
+        GameCursorGuard.PopUiCursor();
+        cursorPushed = false;
     }
 
     private void UpdateDetails(LocationDefinition location)
     {
         if (titleText != null)
-            titleText.text = location != null ? location.DisplayNameOrId : "No location";
+            titleText.text = location != null ? location.DisplayNameOrId : "Нет локаций";
 
         if (descriptionText != null)
-            descriptionText.text = location != null ? location.description : "Create a LocationDefinition and assign it to BunkerManager.";
+            descriptionText.text = location != null ? location.description : "Создайте LocationDefinition или добавьте локацию в BunkerManager.";
 
         if (difficultyText != null)
-            difficultyText.text = location != null ? $"Difficulty: {location.difficulty}" : "Difficulty: -";
+            difficultyText.text = location != null ? $"Сложность: {location.difficulty}" : "Сложность: -";
 
         if (recommendedLevelText != null)
-            recommendedLevelText.text = location != null ? $"Recommended level: {location.recommendedLevel}" : "Recommended level: -";
+            recommendedLevelText.text = location != null ? $"Рекомендуемый уровень: {location.recommendedLevel}" : "Рекомендуемый уровень: -";
 
         if (startButton != null)
             startButton.interactable = location != null;
@@ -187,7 +206,7 @@ public class LocationSelectionUI : MonoBehaviour
         panelRect.pivot = new Vector2(0.5f, 0.5f);
         panelRect.sizeDelta = new Vector2(920f, 520f);
 
-        titleText = CreateText("Title", panel.transform, "Location", font, 26, TextAnchor.MiddleLeft);
+        titleText = CreateText("Title", panel.transform, "Локация", font, 26, TextAnchor.MiddleLeft);
         titleText.fontStyle = FontStyle.Bold;
         titleText.rectTransform.anchorMin = new Vector2(0f, 1f);
         titleText.rectTransform.anchorMax = new Vector2(1f, 1f);
@@ -220,19 +239,19 @@ public class LocationSelectionUI : MonoBehaviour
         descriptionText = CreateText("Description", detailsRoot, string.Empty, font, 17, TextAnchor.UpperLeft);
         Stretch(descriptionText.rectTransform);
 
-        difficultyText = CreateText("Difficulty", panel.transform, "Difficulty: -", font, 16, TextAnchor.MiddleLeft);
+        difficultyText = CreateText("Difficulty", panel.transform, "Сложность: -", font, 16, TextAnchor.MiddleLeft);
         difficultyText.rectTransform.anchorMin = new Vector2(0f, 0f);
         difficultyText.rectTransform.anchorMax = new Vector2(1f, 0f);
         difficultyText.rectTransform.anchoredPosition = new Vector2(350f, 72f);
         difficultyText.rectTransform.sizeDelta = new Vector2(-390f, 28f);
 
-        recommendedLevelText = CreateText("Recommended Level", panel.transform, "Recommended level: -", font, 16, TextAnchor.MiddleLeft);
+        recommendedLevelText = CreateText("Recommended Level", panel.transform, "Рекомендуемый уровень: -", font, 16, TextAnchor.MiddleLeft);
         recommendedLevelText.rectTransform.anchorMin = new Vector2(0f, 0f);
         recommendedLevelText.rectTransform.anchorMax = new Vector2(1f, 0f);
         recommendedLevelText.rectTransform.anchoredPosition = new Vector2(350f, 42f);
         recommendedLevelText.rectTransform.sizeDelta = new Vector2(-390f, 28f);
 
-        startButton = CreateButton("Start Raid", panel.transform, "Start raid", font);
+        startButton = CreateButton("Start Raid", panel.transform, "Начать вылазку", font);
         startButton.GetComponent<RectTransform>().anchorMin = new Vector2(1f, 0f);
         startButton.GetComponent<RectTransform>().anchorMax = new Vector2(1f, 0f);
         startButton.GetComponent<RectTransform>().pivot = new Vector2(1f, 0f);
@@ -240,7 +259,7 @@ public class LocationSelectionUI : MonoBehaviour
         startButton.GetComponent<RectTransform>().sizeDelta = new Vector2(170f, 42f);
         startButton.onClick.AddListener(StartSelectedLocation);
 
-        closeButton = CreateButton("Close", panel.transform, "Close", font);
+        closeButton = CreateButton("Close", panel.transform, "Закрыть", font);
         closeButton.GetComponent<RectTransform>().anchorMin = new Vector2(1f, 1f);
         closeButton.GetComponent<RectTransform>().anchorMax = new Vector2(1f, 1f);
         closeButton.GetComponent<RectTransform>().pivot = new Vector2(1f, 1f);

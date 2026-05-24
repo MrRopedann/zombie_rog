@@ -22,6 +22,7 @@ public class BunkerManager : MonoBehaviour
     {
         instance = this;
         ResolveReferences();
+        LoadDefaultLocationsIfNeeded();
         UnlockDefaultLocations();
     }
 
@@ -131,6 +132,23 @@ public class BunkerManager : MonoBehaviour
 
         if (stations.Count == 0)
             stations.AddRange(GetComponentsInChildren<BuildableStation>(true));
+    }
+
+    private void LoadDefaultLocationsIfNeeded()
+    {
+        if (locations.Count > 0)
+            return;
+
+        LocationDefinition[] loadedLocations = Resources.LoadAll<LocationDefinition>("RuntimeLoadedOnly/Data/Raid");
+        if (loadedLocations == null || loadedLocations.Length == 0)
+            return;
+
+        for (int i = 0; i < loadedLocations.Length; i++)
+        {
+            LocationDefinition location = loadedLocations[i];
+            if (location != null && !locations.Contains(location))
+                locations.Add(location);
+        }
     }
 
     private void UnlockDefaultLocations()

@@ -6,6 +6,7 @@ using UnityEngine.UI;
 public class UIAmmoHUD : MonoBehaviour
 {
     [Header("References")]
+    [SerializeField] private GameObject uiRoot;
     [SerializeField] private TextMeshProUGUI ammoText;
     [SerializeField] private Text legacyAmmoText;
     [SerializeField] private PlayerWeaponController weaponController;
@@ -21,6 +22,7 @@ public class UIAmmoHUD : MonoBehaviour
 
     private Weapon _currentWeapon;
     private PlayerWeaponController _subscribedWeaponController;
+    private bool generatedFallbackHud;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void AttachToSceneHud()
@@ -42,11 +44,13 @@ public class UIAmmoHUD : MonoBehaviour
     private void Awake()
     {
         ResolveTextReferences();
+        BuildFallbackUIIfNeeded();
     }
 
     private void OnEnable()
     {
         ResolveTextReferences();
+        BuildFallbackUIIfNeeded();
         TryBindWeaponController();
         Refresh();
     }
@@ -205,6 +209,54 @@ public class UIAmmoHUD : MonoBehaviour
         }
     }
 
+    private void BuildFallbackUIIfNeeded()
+    {
+        if (ammoText != null || legacyAmmoText != null || uiRoot != null)
+            return;
+
+        generatedFallbackHud = true;
+
+        uiRoot = new GameObject("HUD_Ammo", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+        uiRoot.transform.SetParent(transform, false);
+
+        Canvas canvas = uiRoot.GetComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 56;
+
+        CanvasScaler scaler = uiRoot.GetComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        scaler.matchWidthOrHeight = 0.5f;
+
+        GameObject panel = new GameObject("Panel", typeof(RectTransform), typeof(Image));
+        panel.transform.SetParent(uiRoot.transform, false);
+
+        RectTransform panelRect = panel.GetComponent<RectTransform>();
+        panelRect.anchorMin = new Vector2(1f, 0f);
+        panelRect.anchorMax = new Vector2(1f, 0f);
+        panelRect.pivot = new Vector2(1f, 0f);
+        panelRect.anchoredPosition = new Vector2(-24f, 24f);
+        panelRect.sizeDelta = new Vector2(230f, 48f);
+
+        Image image = panel.GetComponent<Image>();
+        image.color = new Color(0.035f, 0.04f, 0.045f, 0.78f);
+
+        ammoText = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI)).GetComponent<TextMeshProUGUI>();
+        ammoText.transform.SetParent(panel.transform, false);
+        ammoText.fontSize = 20f;
+        ammoText.fontStyle = FontStyles.Bold;
+        ammoText.alignment = TextAlignmentOptions.Center;
+        ammoText.color = Color.white;
+        ammoText.raycastTarget = false;
+        ammoText.enableWordWrapping = false;
+
+        RectTransform textRect = ammoText.rectTransform;
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = new Vector2(10f, 0f);
+        textRect.offsetMax = new Vector2(-10f, 0f);
+    }
+
     private static GameObject FindSceneObjectByName(string objectName)
     {
         if (string.IsNullOrWhiteSpace(objectName))
@@ -244,14 +296,16 @@ public class UIAmmoHUD : MonoBehaviour
 
     private void SetText(string value)
     {
+        string displayValue = generatedFallbackHud ? $"Патроны: {value}" : value;
+
         if (ammoText != null)
         {
-            ammoText.text = value;
+            ammoText.text = displayValue;
         }
 
         if (legacyAmmoText != null)
         {
-            legacyAmmoText.text = value;
+            legacyAmmoText.text = displayValue;
         }
     }
 

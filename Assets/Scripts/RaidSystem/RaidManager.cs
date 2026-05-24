@@ -64,6 +64,15 @@ public class RaidManager : MonoBehaviour
         if (raidActive)
             return;
 
+        if (location == null)
+            location = LoadDefaultLocation();
+
+        if (location == null)
+        {
+            Debug.LogWarning("Cannot start raid: no location selected and no default LocationDefinition found in Resources/RuntimeLoadedOnly/Data/Raid.", this);
+            return;
+        }
+
         selectedLocation = location;
         selectedMission = mission != null ? mission : ResolveDefaultMission(location);
         completedMissionIds.Clear();
@@ -226,6 +235,22 @@ public class RaidManager : MonoBehaviour
         }
 
         return location.availableMissions.Count > 0 ? location.availableMissions[0] : null;
+    }
+
+    private static LocationDefinition LoadDefaultLocation()
+    {
+        LocationDefinition[] locations = Resources.LoadAll<LocationDefinition>("RuntimeLoadedOnly/Data/Raid");
+        if (locations == null || locations.Length == 0)
+            return null;
+
+        for (int i = 0; i < locations.Length; i++)
+        {
+            LocationDefinition location = locations[i];
+            if (location != null && location.isUnlockedByDefault)
+                return location;
+        }
+
+        return locations[0];
     }
 
     private static List<MissionDefinition> ResolveMissions(LocationDefinition location, MissionDefinition fallbackMission)

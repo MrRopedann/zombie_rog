@@ -74,7 +74,7 @@ public class RaidObjectiveUI : MonoBehaviour
     private void HandleExtractionActivated()
     {
         if (objectiveText != null)
-            objectiveText.text = "Extraction active";
+            objectiveText.text = "Эвакуация активна";
     }
 
     private void ResolveReferences()

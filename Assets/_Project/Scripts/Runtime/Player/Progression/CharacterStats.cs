@@ -513,7 +513,9 @@ public class CharacterStats : MonoBehaviour
     /// </summary>
     public void AddExperience(int amount)
     {
-        CharacterProgression progression = GetComponent<CharacterProgression>();
+        CharacterProgression progression = GetComponent<CharacterProgression>() ??
+            GetComponentInChildren<CharacterProgression>(true) ??
+            GetComponentInParent<CharacterProgression>();
         if (progression != null)
         {
             progression.AddExperience(amount);
@@ -521,14 +523,20 @@ public class CharacterStats : MonoBehaviour
         }
 
         currentExp += Mathf.Max(0, amount);
+        bool leveledUp = false;
 
         while (currentExp >= expToNextLevel && expToNextLevel > 0)
         {
             currentExp -= expToNextLevel;
             playerLevel++;
-            OnLevelChanged?.Invoke();
-            // Здесь можно добавить вызов CharacterProgression.GainLevel()
+            expToNextLevel = Mathf.Max(1, Mathf.RoundToInt(expToNextLevel * 1.4f));
+            leveledUp = true;
         }
+
+        if (leveledUp)
+            RecalculateAllStats();
+
+        NotifyProgressionChanged();
     }
 
     public void ApplyProgressionState(int level, int experience, int experienceToNextLevel, bool notify = true)

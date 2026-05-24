@@ -14,6 +14,12 @@ public class GameSaveManager : MonoBehaviour
     private const string MainMenuSceneName = "MainScene";
     private const int CurrentVersion = 1;
 
+    private enum SaveCaptureMode
+    {
+        FullWorld,
+        ExtractedRaidReturn
+    }
+
     private static GameSaveManager instance;
     private static GameSaveData pendingLoad;
 
@@ -48,6 +54,16 @@ public class GameSaveManager : MonoBehaviour
     public static bool SaveGame()
     {
         return SaveCurrentGame();
+    }
+
+    public static bool SaveExtractedRaidReturn(string bunkerSceneName)
+    {
+        return EnsureActive().SaveNow(bunkerSceneName, SaveCaptureMode.ExtractedRaidReturn);
+    }
+
+    public static bool SaveExtractedRaidReturnAndQueueLoad(string bunkerSceneName)
+    {
+        return EnsureActive().SaveNow(bunkerSceneName, SaveCaptureMode.ExtractedRaidReturn, true);
     }
 
     public static bool LoadCurrentGame()
@@ -127,6 +143,16 @@ public class GameSaveManager : MonoBehaviour
 
     private bool SaveNow()
     {
+        return SaveNow(null, SaveCaptureMode.FullWorld);
+    }
+
+    private bool SaveNow(string sceneNameOverride, SaveCaptureMode captureMode)
+    {
+        return SaveNow(sceneNameOverride, captureMode, false);
+    }
+
+    private bool SaveNow(string sceneNameOverride, SaveCaptureMode captureMode, bool queueSavedDataForNextScene)
+    {
         if (!CanControlPersistence())
         {
             Debug.LogWarning("Only singleplayer or the coop host can save the authoritative world state.");
@@ -140,8 +166,12 @@ public class GameSaveManager : MonoBehaviour
             return false;
         }
 
-        GameSaveData data = CaptureSave();
+        GameSaveData data = CaptureSave(sceneNameOverride, captureMode);
         ES3.Save(SaveKey, data, SaveFileName);
+
+        if (queueSavedDataForNextScene)
+            pendingLoad = data;
+
         Debug.Log($"Game saved to Easy Save 3 file '{SaveFileName}' at {data.savedAtUtc}.");
         return true;
     }
@@ -167,6 +197,9 @@ public class GameSaveManager : MonoBehaviour
             return false;
         }
 
+        if (!string.IsNullOrWhiteSpace(data.selectedCharacterId))
+            PlayerCharacterRepository.SelectCharacter(data.selectedCharacterId);
+
         string targetScene = string.IsNullOrWhiteSpace(data.sceneName)
             ? SceneManager.GetActiveScene().name
             : data.sceneName;
@@ -183,27 +216,130 @@ public class GameSaveManager : MonoBehaviour
         return true;
     }
 
-    private GameSaveData CaptureSave()
+    private GameSaveData CaptureSave(string sceneNameOverride = null, SaveCaptureMode captureMode = SaveCaptureMode.FullWorld)
     {
+        bool extractedRaidReturn = captureMode == SaveCaptureMode.ExtractedRaidReturn;
+        GameSaveData previousSave = extractedRaidReturn ? LoadPreviousSaveOrNull() : null;
+        string targetSceneName = !string.IsNullOrWhiteSpace(sceneNameOverride)
+            ? sceneNameOverride.Trim()
+            : SceneManager.GetActiveScene().name;
+
+        List<PlayerSaveData> players = CapturePlayers();
+        if (extractedRaidReturn)
+            ApplyBunkerReturnPlayerPositions(players, previousSave, targetSceneName);
+
+        BunkerSaveData bunker = CaptureBunker();
+        if (extractedRaidReturn && IsEmptyBunkerSave(bunker) && previousSave != null && previousSave.bunker != null)
+            bunker = previousSave.bunker;
+
+        List<UnlockedLocationSaveData> unlockedLocations = bunker != null && bunker.unlockedLocations != null
+            ? new List<UnlockedLocationSaveData>(bunker.unlockedLocations)
+            : new List<UnlockedLocationSaveData>();
+
+        if (extractedRaidReturn && unlockedLocations.Count == 0 && previousSave != null && previousSave.unlockedLocations != null)
+            unlockedLocations = new List<UnlockedLocationSaveData>(previousSave.unlockedLocations);
+
         GameSaveData data = new GameSaveData
         {
             version = CurrentVersion,
             savedAtUtc = DateTime.UtcNow.ToString("O"),
-            sceneName = SceneManager.GetActiveScene().name,
+            sceneName = targetSceneName,
             selectedCharacterId = PlayerCharacterRepository.SelectedCharacterId,
             coopSession = CoopSessionState.IsCoopSession,
             coopHostSave = CoopSessionState.IsHost,
-            players = CapturePlayers(),
+            skipSceneWorldStateRestore = extractedRaidReturn,
+            players = players,
             authoritativeInventories = CaptureAuthoritativeInventories(),
-            lootContainers = CaptureLootContainers(),
-            worldItems = CaptureWorldItems(),
-            zombies = CaptureZombies(),
-            saveableObjects = CaptureSaveableObjects(),
-            bunker = CaptureBunker(),
-            unlockedLocations = CaptureUnlockedLocations()
+            lootContainers = extractedRaidReturn ? new List<LootContainerSaveData>() : CaptureLootContainers(),
+            worldItems = extractedRaidReturn ? new List<WorldItemSaveData>() : CaptureWorldItems(),
+            zombies = extractedRaidReturn ? new List<ZombieSaveData>() : CaptureZombies(),
+            saveableObjects = extractedRaidReturn ? new List<SaveableObjectData>() : CaptureSaveableObjects(),
+            bunker = bunker,
+            unlockedLocations = unlockedLocations
         };
 
         return data;
+    }
+
+    private GameSaveData LoadPreviousSaveOrNull()
+    {
+        if (!SaveExists)
+            return null;
+
+        try
+        {
+            return ES3.Load<GameSaveData>(SaveKey, SaveFileName);
+        }
+        catch (Exception exception)
+        {
+            Debug.LogWarning($"Could not read previous save before raid extraction save: {exception.Message}");
+            return null;
+        }
+    }
+
+    private static void ApplyBunkerReturnPlayerPositions(List<PlayerSaveData> players, GameSaveData previousSave, string targetSceneName)
+    {
+        if (players == null)
+            return;
+
+        bool previousWasTargetScene = previousSave != null &&
+            string.Equals(previousSave.sceneName, targetSceneName, StringComparison.Ordinal);
+
+        for (int i = 0; i < players.Count; i++)
+        {
+            PlayerSaveData player = players[i];
+            if (player == null)
+                continue;
+
+            PlayerSaveData previousPlayer = previousWasTargetScene
+                ? FindMatchingSavedPlayer(previousSave.players, player)
+                : null;
+
+            if (previousPlayer != null)
+            {
+                player.position = previousPlayer.position;
+                player.rotation = previousPlayer.rotation;
+            }
+            else
+            {
+                player.position = Vector3.zero;
+                player.rotation = Quaternion.identity;
+            }
+        }
+    }
+
+    private static PlayerSaveData FindMatchingSavedPlayer(List<PlayerSaveData> players, PlayerSaveData current)
+    {
+        if (players == null || current == null)
+            return null;
+
+        for (int i = 0; i < players.Count; i++)
+        {
+            PlayerSaveData player = players[i];
+            if (player == null)
+                continue;
+
+            if (!string.IsNullOrWhiteSpace(current.selectedCharacterId) &&
+                current.selectedCharacterId == player.selectedCharacterId)
+                return player;
+
+            if (current.ownerId > 0 && current.ownerId == player.ownerId)
+                return player;
+
+            if (current.playerId > 0 && current.playerId == player.playerId)
+                return player;
+        }
+
+        return null;
+    }
+
+    private static bool IsEmptyBunkerSave(BunkerSaveData bunker)
+    {
+        return bunker == null ||
+            (string.IsNullOrWhiteSpace(bunker.bunkerId) &&
+            (bunker.storage == null || bunker.storage.slots == null || bunker.storage.slots.Count == 0) &&
+            (bunker.unlockedLocations == null || bunker.unlockedLocations.Count == 0) &&
+            (bunker.installedStationIds == null || bunker.installedStationIds.Count == 0));
     }
 
     private void ApplySave(GameSaveData data)
@@ -214,13 +350,19 @@ public class GameSaveManager : MonoBehaviour
         LoadItemCache();
         LoadZombiePrefabCache();
 
-        RestoreSaveableObjects(data.saveableObjects);
+        if (!data.skipSceneWorldStateRestore)
+            RestoreSaveableObjects(data.saveableObjects);
+
         RestoreBunker(data.bunker);
         RestorePlayers(data.players);
         RestoreAuthoritativeInventories(data.authoritativeInventories);
-        RestoreLootContainers(data.lootContainers);
-        RestoreWorldItems(data.worldItems);
-        RestoreZombies(data.zombies);
+
+        if (!data.skipSceneWorldStateRestore)
+        {
+            RestoreLootContainers(data.lootContainers);
+            RestoreWorldItems(data.worldItems);
+            RestoreZombies(data.zombies);
+        }
 
         Debug.Log($"Game save loaded from '{SaveFileName}' (version {data.version}, scene {data.sceneName}).");
     }
@@ -998,6 +1140,7 @@ public class GameSaveData
     public string selectedCharacterId;
     public bool coopSession;
     public bool coopHostSave;
+    public bool skipSceneWorldStateRestore;
     public List<PlayerSaveData> players = new();
     public List<NetworkInventorySaveData> authoritativeInventories = new();
     public List<LootContainerSaveData> lootContainers = new();
