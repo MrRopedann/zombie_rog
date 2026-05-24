@@ -12,9 +12,9 @@ using UnityEngine.UI;
 
 public static class CoopMenuSetupTool
 {
-    private const string MainScenePath = "Assets/_Scenes/MainScene.unity";
-    private const string CoopMenuPrefabPath = "Assets/Resources/Prefabs/UI/Menu/CoopMenu.prefab";
-    private const string ButtonTemplatePath = "Assets/Resources/Prefabs/UI/Menu/Btn_Template.prefab";
+    private const string MainScenePath = "Assets/_Project/Scenes/Main/MainScene.unity";
+    private const string CoopMenuPrefabPath = "Assets/_Project/Resources/RuntimeLoadedOnly/Prefabs/UI/Menu/CoopMenu.prefab";
+    private const string ButtonTemplatePath = "Assets/_Project/Prefabs/UI/Menus/Btn_Template.prefab";
     private const string AutoConfigureRequestPath = "Library/CodexConfigureCoopMenu.request";
     private const string AutoConfigureResultPath = "Library/CodexConfigureCoopMenu.result";
 
@@ -86,7 +86,7 @@ public static class CoopMenuSetupTool
 
     private static GameObject CreateOrUpdateCoopMenuPrefab()
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(CoopMenuPrefabPath) ?? "Assets/Resources/Prefabs/UI/Menu");
+        Directory.CreateDirectory(Path.GetDirectoryName(CoopMenuPrefabPath) ?? "Assets/_Project/Resources/RuntimeLoadedOnly/Prefabs/UI/Menu");
 
         Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         DefaultControls.Resources resources = GetDefaultUiResources();

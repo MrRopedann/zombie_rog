@@ -83,7 +83,7 @@ public class PlayerCharacterMenuController : MonoBehaviour
         GameObject panel = FindSceneObjectByName("CharacterCreationPanel");
         if (panel == null)
         {
-            GameObject prefab = Resources.Load<GameObject>("Prefabs/UI/Menu/CharacterCreationPanel");
+            GameObject prefab = Resources.Load<GameObject>("RuntimeLoadedOnly/Prefabs/UI/Menu/CharacterCreationPanel");
             if (prefab == null)
                 return null;
 

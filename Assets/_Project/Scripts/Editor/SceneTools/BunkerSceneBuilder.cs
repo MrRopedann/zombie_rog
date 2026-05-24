@@ -8,39 +8,39 @@ using UnityEngine.SceneManagement;
 
 public static class BunkerSceneBuilder
 {
-    private const string ScenePath = "Assets/_Scenes/Bunker.unity";
+    private const string ScenePath = "Assets/_Project/Scenes/Bunker/Bunker.unity";
     private const string GeneratedRootName = "Generated_Bunker_Shelter";
     private const string AutoBuildRequestPath = "Library/CodexBuildBunker.request";
     private const string AutoBuildResultPath = "Library/CodexBuildBunker.result";
     private const float Tile = 4f;
 
-    private const string PlayerPrefabPath = "Assets/Resources/Prefabs/Character/Player.prefab";
-    private const string FloorPrefabPath = "Assets/PolygonApocalypse/Prefabs/Buildings/SM_Bld_Bunker_Floor_Stone_x2_01.prefab";
-    private const string ConcreteFloorPrefabPath = "Assets/PolygonApocalypse/Prefabs/Buildings/SM_Bld_Bunker_Concrete_Floor_01.prefab";
-    private const string WallPrefabPath = "Assets/PolygonApocalypse/Prefabs/Buildings/SM_Bld_Bunker_Wall_Concrete_x2_01.prefab";
-    private const string DoorWallPrefabPath = "Assets/PolygonApocalypse/Prefabs/Buildings/SM_Bld_Bunker_Wall_Concrete_Door_01.prefab";
-    private const string CeilingPrefabPath = "Assets/PolygonApocalypse/Prefabs/Buildings/SM_Bld_Bunker_Ceiling_Concrete_01.prefab";
-    private const string VentCeilingPrefabPath = "Assets/PolygonApocalypse/Prefabs/Buildings/SM_Bld_Bunker_Ceiling_Vent_01.prefab";
-    private const string PillarPrefabPath = "Assets/PolygonApocalypse/Prefabs/Buildings/SM_Bld_Bunker_PillarBlock_01.prefab";
-    private const string StairsPrefabPath = "Assets/PolygonApocalypse/Prefabs/Buildings/SM_Bld_Bunker_Stairs_Double_01.prefab";
-    private const string HatchPrefabPath = "Assets/PolygonApocalypse/Prefabs/Buildings/SM_Bld_Bunker_Hatch_Round_01.prefab";
-    private const string EntrancePrefabPath = "Assets/PolygonApocalypse/Prefabs/Environment/SM_Env_Bunker_Entrance_01.prefab";
-    private const string LightPrefabPath = "Assets/PolygonApocalypse/Prefabs/Props/SM_Prop_Bunker_Light_01.prefab";
-    private const string FluorescentLightPrefabPath = "Assets/PolygonApocalypse/Prefabs/Props/SM_Prop_Light_Flurecent_01.prefab";
-    private const string WallPipePrefabPath = "Assets/PolygonApocalypse/Prefabs/Props/SM_Prop_Bunker_WallPipe_01.prefab";
-    private const string WallWiresPrefabPath = "Assets/PolygonApocalypse/Prefabs/Props/SM_Prop_Bunker_WallWires_01.prefab";
-    private const string RoofWirePrefabPath = "Assets/PolygonApocalypse/Prefabs/Props/SM_Prop_Bunker_RoofWire_01.prefab";
-    private const string CratePrefabPath = "Assets/PolygonApocalypse/Prefabs/Props/SM_Prop_Crate_03.prefab";
-    private const string LargeCratePrefabPath = "Assets/PolygonApocalypse/Prefabs/Props/SM_Prop_Crate_Large_01.prefab";
-    private const string AmmoBoxPrefabPath = "Assets/PolygonApocalypse/Prefabs/Props/SM_Prop_Ammo_Box_01.prefab";
-    private const string WorkShelfPrefabPath = "Assets/PolygonApocalypse/Prefabs/Props/SM_Prop_WorkShelf_01.prefab";
-    private const string ShelfPrefabPath = "Assets/PolygonApocalypse/Prefabs/Props/SM_Prop_Shelf_01_Combined.prefab";
-    private const string TablePrefabPath = "Assets/PolygonApocalypse/Prefabs/Props/SM_Prop_Table_02.prefab";
-    private const string GeneratorPrefabPath = "Assets/PolygonApocalypse/Prefabs/Props/SM_Prop_Generator_01.prefab";
-    private const string MedicalShelfPrefabPath = "Assets/PolygonApocalypse/Prefabs/Props/SM_Prop_Medical_Shelf_01.prefab";
-    private const string MedicalBoxPrefabPath = "Assets/PolygonApocalypse/Prefabs/Props/SM_Prop_MedicalBox_01.prefab";
-    private const string PowerBoxPrefabPath = "Assets/PolygonApocalypse/Prefabs/Props/SM_Prop_PowerBoxes_01.prefab";
-    private const string BarrelWaterPrefabPath = "Assets/PolygonApocalypse/Prefabs/Props/SM_Prop_Barrel_Water_01.prefab";
+    private const string PlayerPrefabPath = "Assets/_Project/Resources/RuntimeLoadedOnly/Prefabs/Character/Player.prefab";
+    private const string FloorPrefabPath = "Assets/_External/PolygonApocalypse/Prefabs/Buildings/SM_Bld_Bunker_Floor_Stone_x2_01.prefab";
+    private const string ConcreteFloorPrefabPath = "Assets/_External/PolygonApocalypse/Prefabs/Buildings/SM_Bld_Bunker_Concrete_Floor_01.prefab";
+    private const string WallPrefabPath = "Assets/_External/PolygonApocalypse/Prefabs/Buildings/SM_Bld_Bunker_Wall_Concrete_x2_01.prefab";
+    private const string DoorWallPrefabPath = "Assets/_External/PolygonApocalypse/Prefabs/Buildings/SM_Bld_Bunker_Wall_Concrete_Door_01.prefab";
+    private const string CeilingPrefabPath = "Assets/_External/PolygonApocalypse/Prefabs/Buildings/SM_Bld_Bunker_Ceiling_Concrete_01.prefab";
+    private const string VentCeilingPrefabPath = "Assets/_External/PolygonApocalypse/Prefabs/Buildings/SM_Bld_Bunker_Ceiling_Vent_01.prefab";
+    private const string PillarPrefabPath = "Assets/_External/PolygonApocalypse/Prefabs/Buildings/SM_Bld_Bunker_PillarBlock_01.prefab";
+    private const string StairsPrefabPath = "Assets/_External/PolygonApocalypse/Prefabs/Buildings/SM_Bld_Bunker_Stairs_Double_01.prefab";
+    private const string HatchPrefabPath = "Assets/_External/PolygonApocalypse/Prefabs/Buildings/SM_Bld_Bunker_Hatch_Round_01.prefab";
+    private const string EntrancePrefabPath = "Assets/_External/PolygonApocalypse/Prefabs/Environment/SM_Env_Bunker_Entrance_01.prefab";
+    private const string LightPrefabPath = "Assets/_External/PolygonApocalypse/Prefabs/Props/SM_Prop_Bunker_Light_01.prefab";
+    private const string FluorescentLightPrefabPath = "Assets/_External/PolygonApocalypse/Prefabs/Props/SM_Prop_Light_Flurecent_01.prefab";
+    private const string WallPipePrefabPath = "Assets/_External/PolygonApocalypse/Prefabs/Props/SM_Prop_Bunker_WallPipe_01.prefab";
+    private const string WallWiresPrefabPath = "Assets/_External/PolygonApocalypse/Prefabs/Props/SM_Prop_Bunker_WallWires_01.prefab";
+    private const string RoofWirePrefabPath = "Assets/_External/PolygonApocalypse/Prefabs/Props/SM_Prop_Bunker_RoofWire_01.prefab";
+    private const string CratePrefabPath = "Assets/_External/PolygonApocalypse/Prefabs/Props/SM_Prop_Crate_03.prefab";
+    private const string LargeCratePrefabPath = "Assets/_External/PolygonApocalypse/Prefabs/Props/SM_Prop_Crate_Large_01.prefab";
+    private const string AmmoBoxPrefabPath = "Assets/_External/PolygonApocalypse/Prefabs/Props/SM_Prop_Ammo_Box_01.prefab";
+    private const string WorkShelfPrefabPath = "Assets/_External/PolygonApocalypse/Prefabs/Props/SM_Prop_WorkShelf_01.prefab";
+    private const string ShelfPrefabPath = "Assets/_External/PolygonApocalypse/Prefabs/Props/SM_Prop_Shelf_01_Combined.prefab";
+    private const string TablePrefabPath = "Assets/_External/PolygonApocalypse/Prefabs/Props/SM_Prop_Table_02.prefab";
+    private const string GeneratorPrefabPath = "Assets/_External/PolygonApocalypse/Prefabs/Props/SM_Prop_Generator_01.prefab";
+    private const string MedicalShelfPrefabPath = "Assets/_External/PolygonApocalypse/Prefabs/Props/SM_Prop_Medical_Shelf_01.prefab";
+    private const string MedicalBoxPrefabPath = "Assets/_External/PolygonApocalypse/Prefabs/Props/SM_Prop_MedicalBox_01.prefab";
+    private const string PowerBoxPrefabPath = "Assets/_External/PolygonApocalypse/Prefabs/Props/SM_Prop_PowerBoxes_01.prefab";
+    private const string BarrelWaterPrefabPath = "Assets/_External/PolygonApocalypse/Prefabs/Props/SM_Prop_Barrel_Water_01.prefab";
 
     [MenuItem("Tools/Zombie Rogue/Scenes/Build Bunker Shelter")]
     public static void BuildAndSaveBunkerScene()
@@ -92,7 +92,7 @@ public static class BunkerSceneBuilder
         if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) != null)
             return EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
 
-        Directory.CreateDirectory(Path.GetDirectoryName(ScenePath) ?? "Assets/_Scenes");
+        Directory.CreateDirectory(Path.GetDirectoryName(ScenePath) ?? "Assets/_Project/Scenes/Bunker");
         Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         EditorSceneManager.SaveScene(scene, ScenePath);
         return scene;

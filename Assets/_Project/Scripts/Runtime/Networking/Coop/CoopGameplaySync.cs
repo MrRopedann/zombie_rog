@@ -663,24 +663,24 @@ public class CoopGameplaySync : MonoBehaviour
     private void LoadPrefabs()
     {
         if (playerPrefab == null)
-            playerPrefab = Resources.Load<GameObject>("Prefabs/Character/Player");
+            playerPrefab = Resources.Load<GameObject>("RuntimeLoadedOnly/Prefabs/Character/Player");
 
         if (reviveMarkerPrefab == null)
         {
-            reviveMarkerPrefab = Resources.Load<GameObject>("Prefabs/Coop/SM_Prop_Cross_02")
+            reviveMarkerPrefab = Resources.Load<GameObject>("RuntimeLoadedOnly/Prefabs/Coop/SM_Prop_Cross_02")
                 ?? Resources.Load<GameObject>("SM_Prop_Cross_02");
 
 #if UNITY_EDITOR
             if (reviveMarkerPrefab == null)
             {
                 reviveMarkerPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(
-                    "Assets/PolygonApocalypse/Prefabs/Props/SM_Prop_Cross_02.prefab");
+                    "Assets/_External/PolygonApocalypse/Prefabs/Props/SM_Prop_Cross_02.prefab");
             }
 #endif
         }
 
         if (zombiePrefabs == null || zombiePrefabs.Length == 0)
-            zombiePrefabs = Resources.LoadAll<GameObject>("Prefabs/Zombie");
+            zombiePrefabs = Resources.LoadAll<GameObject>("RuntimeLoadedOnly/Prefabs/Zombie");
     }
 
     private void LoadItemCache()
@@ -688,8 +688,8 @@ public class CoopGameplaySync : MonoBehaviour
         if (itemsById.Count > 0)
             return;
 
-        RegisterItems(Resources.LoadAll<ItemSO>("Data"));
-        RegisterItems(Resources.LoadAll<ItemSO>("Data/Item"));
+        RegisterItems(Resources.LoadAll<ItemSO>("RuntimeLoadedOnly/Data"));
+        RegisterItems(Resources.LoadAll<ItemSO>("RuntimeLoadedOnly/Data/Item"));
     }
 
     private void RegisterItems(ItemSO[] items)

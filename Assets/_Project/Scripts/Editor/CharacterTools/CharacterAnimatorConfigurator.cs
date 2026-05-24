@@ -4,14 +4,14 @@ using UnityEngine;
 
 public static class CharacterAnimatorConfigurator
 {
-    private const string ControllerPath = "Assets/Resources/Character/Animations/CharacterAnimatorController.controller";
+    private const string ControllerPath = "Assets/_Project/Art/Animations/Character/CharacterAnimatorController.controller";
     private const string DeathStateName = "Death";
     private const string DamageStateName = "CombatDamage01";
     private const string DamageLayerName = "Aiming";
-    private const string DamageClipPath = "Assets/Resources/Character/Animations/HumanM@CombatDamage01.fbx";
+    private const string DamageClipPath = "Assets/_Project/Art/Animations/Character/HumanM@CombatDamage01.fbx";
     private const string DamageClipName = "CombatDamage01";
     private const string ReloadStateName = "reload";
-    private const string ReloadClipPath = "Assets/Resources/Character/Animations/Weapon/Reload.fbx";
+    private const string ReloadClipPath = "Assets/_Project/Art/Animations/Character/Weapon/Reload.fbx";
     private const string ReloadClipName = "reload";
     private const string DeathParameter = "isDead";
     private const string DamageParameter = "isDamage";

@@ -68,7 +68,7 @@ public class MenuController : MonoBehaviour
         if (coopMenuPanel == null)
         {
             if (coopMenuPrefab == null)
-                coopMenuPrefab = Resources.Load<GameObject>("Prefabs/UI/Menu/CoopMenu");
+                coopMenuPrefab = Resources.Load<GameObject>("RuntimeLoadedOnly/Prefabs/UI/Menu/CoopMenu");
 
             if (coopMenuPrefab != null)
             {
@@ -80,7 +80,7 @@ public class MenuController : MonoBehaviour
         if (coopMenuPanel != null)
             coopMenuPanel.SetActive(true);
         else
-            Debug.LogError("Coop menu prefab is not assigned and Resources/Prefabs/UI/Menu/CoopMenu was not found.", this);
+            Debug.LogError("Coop menu prefab is not assigned and Resources/RuntimeLoadedOnly/Prefabs/UI/Menu/CoopMenu was not found.", this);
     }
 
     private bool RequireCharacterBeforeAction(Action action, bool alwaysShowSelection)
@@ -101,7 +101,7 @@ public class MenuController : MonoBehaviour
         if (characterPanel == null)
         {
             if (characterPanelPrefab == null)
-                characterPanelPrefab = Resources.Load<GameObject>("Prefabs/UI/Menu/CharacterCreationPanel");
+                characterPanelPrefab = Resources.Load<GameObject>("RuntimeLoadedOnly/Prefabs/UI/Menu/CharacterCreationPanel");
 
             if (characterPanelPrefab != null)
             {
@@ -112,7 +112,7 @@ public class MenuController : MonoBehaviour
 
         if (characterPanel == null)
         {
-            Debug.LogError("Character creation prefab was not found at Resources/Prefabs/UI/Menu/CharacterCreationPanel.", this);
+            Debug.LogError("Character creation prefab was not found at Resources/RuntimeLoadedOnly/Prefabs/UI/Menu/CharacterCreationPanel.", this);
             return;
         }
 

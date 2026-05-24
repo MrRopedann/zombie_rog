@@ -103,7 +103,7 @@ public class ZombieSpawner : MonoBehaviour
         GameObject prefab = GetRandomZombiePrefab();
         if (prefab == null)
         {
-            WarnOnce(ref warnedNoPrefabs, "ZombieSpawner has no zombie prefabs. Assign them or keep prefabs under Resources/Prefabs/Zombie.");
+            WarnOnce(ref warnedNoPrefabs, "ZombieSpawner has no zombie prefabs. Assign them or keep prefabs under Resources/RuntimeLoadedOnly/Prefabs/Zombie.");
             return false;
         }
 
@@ -457,7 +457,7 @@ public class ZombieSpawner : MonoBehaviour
         if (HasAnyPrefab())
             return;
 
-        GameObject[] loadedPrefabs = Resources.LoadAll<GameObject>("Prefabs/Zombie");
+        GameObject[] loadedPrefabs = Resources.LoadAll<GameObject>("RuntimeLoadedOnly/Prefabs/Zombie");
         List<GameObject> validPrefabs = new();
 
         for (int i = 0; i < loadedPrefabs.Length; i++)

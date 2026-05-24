@@ -120,7 +120,7 @@ public class CharacterSkinSelector : MonoBehaviour
             return;
 
         if (skinPrefab == null)
-            skinPrefab = Resources.Load<GameObject>("Prefabs/Character/Skin");
+            skinPrefab = Resources.Load<GameObject>("RuntimeLoadedOnly/Prefabs/Character/Skin");
 
         if (skinPrefab == null)
             return;

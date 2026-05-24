@@ -7,7 +7,7 @@ using UnityEngine.SceneManagement;
 public static class ZombieSpawnerEditorTools
 {
     private const string SpawnerName = "Zombie Spawner";
-    private const string ZombiePrefabFolder = "Assets/Resources/Prefabs/Zombie";
+    private const string ZombiePrefabFolder = "Assets/_Project/Resources/RuntimeLoadedOnly/Prefabs/Zombie";
 
     [MenuItem("Tools/Zombie Rogue/Create Zombie Spawner In Scene")]
     public static void CreateOrUpdateSpawnerInActiveScene()

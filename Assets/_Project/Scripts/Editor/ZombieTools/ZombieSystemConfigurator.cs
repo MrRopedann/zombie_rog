@@ -10,18 +10,18 @@ using UnityEngine.SceneManagement;
 
 public static class ZombieSystemConfigurator
 {
-    private const string ControllerPath = "Assets/Resources/Prefabs/Zombie/Zombie_Animations/AnimationControllers/ZombieBase.controller";
-    private const string AnimationPath = "Assets/Resources/Prefabs/Zombie/Zombie_Animations/Animations/";
-    private const string BloodEffectPath = "Assets/PolygonApocalypse/Prefabs/FX/Prefabbed/FX_BloodSplat_01.prefab";
+    private const string ControllerPath = "Assets/_Project/Art/Animations/Zombie/Zombie_Animations/AnimationControllers/ZombieBase.controller";
+    private const string AnimationPath = "Assets/_Project/Art/Animations/Zombie/Zombie_Animations/Animations/";
+    private const string BloodEffectPath = "Assets/_External/PolygonApocalypse/Prefabs/FX/Prefabbed/FX_BloodSplat_01.prefab";
     private const string NavMeshSurfaceName = "Zombie_NavMeshSurface";
-    private const string NavMeshDataFolder = "Assets/Generated/NavMesh";
+    private const string NavMeshDataFolder = "Assets/_Project/Art/Terrain/Generated/NavMesh";
 
     private static readonly string[] ZombiePrefabPaths =
     {
-        "Assets/Resources/Prefabs/Zombie/SM_Chr_Zombie_Female_01.prefab",
-        "Assets/Resources/Prefabs/Zombie/SM_Chr_Zombie_Female_02.prefab",
-        "Assets/Resources/Prefabs/Zombie/SM_Chr_Zombie_Male_01.prefab",
-        "Assets/Resources/Prefabs/Zombie/SM_Chr_Zombie_Male_02.prefab"
+        "Assets/_Project/Resources/RuntimeLoadedOnly/Prefabs/Zombie/SM_Chr_Zombie_Female_01.prefab",
+        "Assets/_Project/Resources/RuntimeLoadedOnly/Prefabs/Zombie/SM_Chr_Zombie_Female_02.prefab",
+        "Assets/_Project/Resources/RuntimeLoadedOnly/Prefabs/Zombie/SM_Chr_Zombie_Male_01.prefab",
+        "Assets/_Project/Resources/RuntimeLoadedOnly/Prefabs/Zombie/SM_Chr_Zombie_Male_02.prefab"
     };
 
     [MenuItem("Tools/Zombie Rogue/Configure Zombie System")]
@@ -318,7 +318,7 @@ public static class ZombieSystemConfigurator
     private static void BakeZombieNavMeshes()
     {
         EnsureFolder("Assets", "Generated");
-        EnsureFolder("Assets/Generated", "NavMesh");
+        EnsureFolder("Assets/_Project/Art/Terrain/Generated", "NavMesh");
 
         foreach (string scenePath in FindZombieScenePaths())
         {

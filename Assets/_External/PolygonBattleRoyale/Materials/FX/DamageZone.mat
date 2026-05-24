@@ -21,7 +21,8 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: DamageZone
-  m_Shader: {fileID: -6465566751694194690, guid: 243f699b6efe7714c8f6c8844c2d5fec, type: 3}
+  m_Shader: {fileID: -6465566751694194690, guid: 6ccd6600678ea544cbd5e03bd1c70342,
+    type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []

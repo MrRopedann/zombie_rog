@@ -9,9 +9,9 @@ using UnityEngine.SceneManagement;
 
 public static class SceneNavMeshConfigurator
 {
-    private const string DemoCityScenePath = "Assets/PolygonApocalypse/Scenes/Demo_City_Universal_RenderPipeline.unity";
+    private const string DemoCityScenePath = "Assets/_External/PolygonApocalypse/Scenes/Demo_City_Universal_RenderPipeline.unity";
     private const string NavMeshSurfaceName = "Zombie_NavMeshSurface";
-    private const string NavMeshDataFolder = "Assets/Generated/NavMesh";
+    private const string NavMeshDataFolder = "Assets/_Project/Art/Terrain/Generated/NavMesh";
 
     private static readonly string[] NavMeshObjectRoots =
     {
@@ -253,7 +253,7 @@ public static class SceneNavMeshConfigurator
     private static string SaveNavMeshData(string scenePath, NavMeshData bakedData)
     {
         EnsureFolder("Assets", "Generated");
-        EnsureFolder("Assets/Generated", "NavMesh");
+        EnsureFolder("Assets/_Project/Art/Terrain/Generated", "NavMesh");
 
         string navMeshAssetPath = $"{NavMeshDataFolder}/{Path.GetFileNameWithoutExtension(scenePath)}_ZombieNavMesh.asset";
         NavMeshData oldData = AssetDatabase.LoadAssetAtPath<NavMeshData>(navMeshAssetPath);

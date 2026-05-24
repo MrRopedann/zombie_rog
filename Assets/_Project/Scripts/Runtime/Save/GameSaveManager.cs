@@ -721,8 +721,8 @@ public class GameSaveManager : MonoBehaviour
         if (itemsById.Count > 0)
             return;
 
-        RegisterItems(Resources.LoadAll<ItemSO>("Data"));
-        RegisterItems(Resources.LoadAll<ItemSO>("Data/Item"));
+        RegisterItems(Resources.LoadAll<ItemSO>("RuntimeLoadedOnly/Data"));
+        RegisterItems(Resources.LoadAll<ItemSO>("RuntimeLoadedOnly/Data/Item"));
         RegisterItems(Resources.LoadAll<ItemSO>(string.Empty));
     }
 
@@ -765,7 +765,7 @@ public class GameSaveManager : MonoBehaviour
         if (zombiePrefabsByName.Count > 0)
             return;
 
-        GameObject[] prefabs = Resources.LoadAll<GameObject>("Prefabs/Zombie");
+        GameObject[] prefabs = Resources.LoadAll<GameObject>("RuntimeLoadedOnly/Prefabs/Zombie");
         for (int i = 0; i < prefabs.Length; i++)
         {
             GameObject prefab = prefabs[i];

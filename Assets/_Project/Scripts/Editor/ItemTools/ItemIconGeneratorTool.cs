@@ -6,9 +6,9 @@ using UnityEngine;
 
 public static class ItemIconGeneratorTool
 {
-    private const string ItemFolder = "Assets/Resources/Data/Item";
-    private const string OutputFolder = "Assets/Resources/UI/GeneratedItemIcons";
-    private const string PolygonApocalypsePreviewMaterialPath = "Assets/PolygonApocalypse/Materials/PolygonApocalypse_Material_01_A.mat";
+    private const string ItemFolder = "Assets/_Project/Resources/RuntimeLoadedOnly/Data/Item";
+    private const string OutputFolder = "Assets/_Project/Art/Textures/UI/GeneratedItemIcons";
+    private const string PolygonApocalypsePreviewMaterialPath = "Assets/_External/PolygonApocalypse/Materials/PolygonApocalypse_Material_01_A.mat";
     private const int IconSize = 256;
     private const int IconPaddingPixels = 10;
     private const float VisibleAlphaThreshold = 0.02f;
