@@ -28,7 +28,12 @@ public class ZombieHealth : BaseDamagable
     [SerializeField] [Min(0f)] private float legDamageMultiplier = 0.75f;
     [SerializeField] [Min(0.1f)] private float hitboxScale = 1f;
 
+    public static event Action<ZombieHealth> OnAnyZombieDied;
+    public static event Action<ZombieHealth, float> OnAnyZombieDamaged;
+
     public event Action<float, Vector3, Vector3> OnDamageTaken;
+
+    private bool deathReported;
 
     public override bool SuppressProjectileImpactEffect => suppressProjectileImpactEffect && hitEffect != null;
 
@@ -38,9 +43,15 @@ public class ZombieHealth : BaseDamagable
             maxHealth = 100f;
 
         base.Awake();
+        OnDeath += HandleDeathReported;
 
         if (autoCreateBoneHitboxes)
             ZombieHitboxBuilder.EnsureHitboxes(this, CreateHitboxSettings());
+    }
+
+    private void OnDestroy()
+    {
+        OnDeath -= HandleDeathReported;
     }
 
     protected override void TakeDamageCore(float damage)
@@ -88,6 +99,16 @@ public class ZombieHealth : BaseDamagable
         SpawnHitEffect(hitPoint, hitNormal);
         SpawnDamageNumber(damage, hitPoint, hitNormal);
         OnDamageTaken?.Invoke(damage, hitPoint, hitNormal);
+        OnAnyZombieDamaged?.Invoke(this, damage);
+    }
+
+    private void HandleDeathReported()
+    {
+        if (deathReported)
+            return;
+
+        deathReported = true;
+        OnAnyZombieDied?.Invoke(this);
     }
 
     private void SpawnHitEffect(Vector3 hitPoint, Vector3 hitNormal)

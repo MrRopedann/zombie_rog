@@ -16,9 +16,10 @@ public class PlayerInventory : MonoBehaviour
     private readonly List<InventorySlot> slots = new();
 
     public event Action InventoryChanged;
+    public event Action<ItemSO, int> ItemAdded;
     public IReadOnlyList<InventorySlot> Slots => slots;
     public int MaxSlots => maxSlots;
-    public float MaxWeight => maxWeight;
+    public float MaxWeight => GetEffectiveMaxWeight();
 
     private void Awake()
     {
@@ -104,6 +105,11 @@ public class PlayerInventory : MonoBehaviour
             return false;
         }
 
+        if (GetCurrentWeight() + item.weight * count > GetEffectiveMaxWeight())
+        {
+            return false;
+        }
+
         int remaining = count;
 
         if (item.isStackable)
@@ -176,6 +182,7 @@ public class PlayerInventory : MonoBehaviour
 
                 if (remaining <= 0)
                 {
+                    NotifyItemAdded(item, count);
                     NotifyInventoryChanged();
                     return true;
                 }
@@ -196,6 +203,7 @@ public class PlayerInventory : MonoBehaviour
 
         if (addedAnything)
         {
+            NotifyItemAdded(item, count - remaining);
             NotifyInventoryChanged();
         }
 
@@ -385,6 +393,50 @@ public class PlayerInventory : MonoBehaviour
         return totalWeight;
     }
 
+    public InventorySaveData GetSaveData()
+    {
+        InventorySaveData data = new InventorySaveData();
+
+        for (int i = 0; i < slots.Count; i++)
+        {
+            InventorySlot slot = slots[i];
+            if (slot == null || slot.item == null || slot.amount <= 0)
+                continue;
+
+            data.slots.Add(new InventorySlotSaveData
+            {
+                itemId = !string.IsNullOrWhiteSpace(slot.item.itemID) ? slot.item.itemID : slot.item.name,
+                amount = slot.amount
+            });
+        }
+
+        return data;
+    }
+
+    public void LoadFromSaveData(InventorySaveData data, ItemDatabase itemDatabase = null)
+    {
+        slots.Clear();
+
+        if (data != null && data.slots != null)
+        {
+            for (int i = 0; i < data.slots.Count; i++)
+            {
+                InventorySlotSaveData slot = data.slots[i];
+                if (slot == null || string.IsNullOrWhiteSpace(slot.itemId) || slot.amount <= 0)
+                    continue;
+
+                ItemSO item = itemDatabase != null ? itemDatabase.Resolve(slot.itemId) : null;
+                if (item == null)
+                    item = ItemDatabase.ResolveFromResources(slot.itemId);
+
+                if (item != null)
+                    AddItem(item, slot.amount);
+            }
+        }
+
+        NotifyInventoryChanged();
+    }
+
     public void SortSlots(InventorySortMode sortMode)
     {
         slots.Sort((left, right) => CompareSlots(left, right, sortMode));
@@ -427,6 +479,22 @@ public class PlayerInventory : MonoBehaviour
     private void NotifyInventoryChanged()
     {
         InventoryChanged?.Invoke();
+    }
+
+    private void NotifyItemAdded(ItemSO item, int amount)
+    {
+        if (item != null && amount > 0)
+            ItemAdded?.Invoke(item, amount);
+    }
+
+    private float GetEffectiveMaxWeight()
+    {
+        ResolveCharacterStats();
+
+        if (characterStats != null && characterStats.MaxWeight > 0f)
+            return Mathf.Min(maxWeight, characterStats.MaxWeight);
+
+        return maxWeight;
     }
 
     private static int CompareSlots(InventorySlot left, InventorySlot right, InventorySortMode sortMode)

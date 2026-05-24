@@ -1,40 +1,103 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class CharacterProgression : MonoBehaviour
 {
-    [Header("Очки харрактеристик")]
+    [Header("РћС‡РєРё С…Р°СЂР°РєС‚РµСЂРёСЃС‚РёРє")]
     public int availableStatPoints = 0;
 
-    [Header("Вложенные очки харрактеристик")]
+    [Header("Р’Р»РѕР¶РµРЅРЅС‹Рµ РѕС‡РєРё С…Р°СЂР°РєС‚РµСЂРёСЃС‚РёРє")]
     public int durabilityPoints = 0;
     public int agilityPoints = 0;
     public int strengthPoints = 0;
 
     private CharacterStats stats;
 
+    public int CurrentLevel => stats != null ? Mathf.Max(1, stats.playerLevel) : 1;
+    public int CurrentExperience => stats != null ? Mathf.Max(0, stats.currentExp) : 0;
+    public int ExperienceToNextLevel => GetExperienceToNextLevel();
+
     private void Awake()
     {
-        stats = GetComponent<CharacterStats>();
+        ResolveStats();
     }
 
-    /// <summary>
-    /// Получить новый уровень
-    /// </summary>
+    public void AddExperience(int amount)
+    {
+        if (amount <= 0 || !ResolveStats())
+            return;
+
+        stats.currentExp += amount;
+        bool leveledUp = TryLevelUp();
+
+        if (!leveledUp)
+            stats.NotifyProgressionChanged();
+    }
+
     public void GainLevel(int levels = 1)
     {
-        stats.playerLevel += levels;
-        availableStatPoints += 1;
+        if (!ResolveStats())
+            return;
 
-        //Погрессия опыта до следуюего уровня
-        stats.expToNextLevel = Mathf.RoundToInt(stats.expToNextLevel * 1.4f);
+        levels = Mathf.Max(1, levels);
 
+        for (int i = 0; i < levels; i++)
+        {
+            stats.playerLevel++;
+            availableStatPoints++;
+
+            // РџСЂРѕРіСЂРµСЃСЃРёСЏ РѕРїС‹С‚Р° РґРѕ СЃР»РµРґСѓСЋС‰РµРіРѕ СѓСЂРѕРІРЅСЏ.
+            stats.expToNextLevel = Mathf.Max(1, Mathf.RoundToInt(stats.expToNextLevel * 1.4f));
+        }
+
+        stats.RecalculateAllStats();
+        stats.NotifyProgressionChanged();
+    }
+
+    public bool TryLevelUp()
+    {
+        if (!ResolveStats())
+            return false;
+
+        bool leveledUp = false;
+
+        while (stats.currentExp >= stats.expToNextLevel && stats.expToNextLevel > 0)
+        {
+            stats.currentExp -= stats.expToNextLevel;
+            GainLevel();
+            leveledUp = true;
+        }
+
+        return leveledUp;
+    }
+
+    public int GetExperienceToNextLevel()
+    {
+        return stats != null ? Mathf.Max(1, stats.expToNextLevel) : 1;
+    }
+
+    public int PredictLevelAfterExperience(int amount)
+    {
+        if (!ResolveStats())
+            return 1;
+
+        int predictedLevel = Mathf.Max(1, stats.playerLevel);
+        int predictedExperience = Mathf.Max(0, stats.currentExp) + Mathf.Max(0, amount);
+        int predictedToNext = Mathf.Max(1, stats.expToNextLevel);
+
+        while (predictedExperience >= predictedToNext)
+        {
+            predictedExperience -= predictedToNext;
+            predictedLevel++;
+            predictedToNext = Mathf.Max(1, Mathf.RoundToInt(predictedToNext * 1.4f));
+        }
+
+        return predictedLevel;
     }
 
     public bool SpendStatPoint(StatType statType)
     {
-        if (availableStatPoints <= 0) return false;
+        if (!ResolveStats() || availableStatPoints <= 0)
+            return false;
 
         switch (statType)
         {
@@ -56,13 +119,29 @@ public class CharacterProgression : MonoBehaviour
 
         availableStatPoints--;
         stats.RecalculateAllStats();
+        stats.NotifyProgressionChanged();
         return true;
     }
 
     public int TotalStatPointsSpend()
     {
-       return durabilityPoints + agilityPoints + strengthPoints;
+        return durabilityPoints + agilityPoints + strengthPoints;
     }
 
+    public void ApplySavedProgression(int savedAvailableStatPoints, int savedDurabilityPoints, int savedAgilityPoints, int savedStrengthPoints)
+    {
+        availableStatPoints = Mathf.Max(0, savedAvailableStatPoints);
+        durabilityPoints = Mathf.Max(0, savedDurabilityPoints);
+        agilityPoints = Mathf.Max(0, savedAgilityPoints);
+        strengthPoints = Mathf.Max(0, savedStrengthPoints);
+        stats?.NotifyProgressionChanged();
+    }
 
+    private bool ResolveStats()
+    {
+        if (stats == null)
+            stats = GetComponent<CharacterStats>();
+
+        return stats != null;
+    }
 }

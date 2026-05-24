@@ -513,7 +513,14 @@ public class CharacterStats : MonoBehaviour
     /// </summary>
     public void AddExperience(int amount)
     {
-        currentExp += amount;
+        CharacterProgression progression = GetComponent<CharacterProgression>();
+        if (progression != null)
+        {
+            progression.AddExperience(amount);
+            return;
+        }
+
+        currentExp += Mathf.Max(0, amount);
 
         while (currentExp >= expToNextLevel && expToNextLevel > 0)
         {
@@ -522,6 +529,23 @@ public class CharacterStats : MonoBehaviour
             OnLevelChanged?.Invoke();
             // Здесь можно добавить вызов CharacterProgression.GainLevel()
         }
+    }
+
+    public void ApplyProgressionState(int level, int experience, int experienceToNextLevel, bool notify = true)
+    {
+        int previousLevel = playerLevel;
+
+        playerLevel = Mathf.Max(1, level);
+        currentExp = Mathf.Max(0, experience);
+        expToNextLevel = Mathf.Max(1, experienceToNextLevel);
+
+        if (notify || previousLevel != playerLevel)
+            OnLevelChanged?.Invoke();
+    }
+
+    public void NotifyProgressionChanged()
+    {
+        OnLevelChanged?.Invoke();
     }
 
     private void RefreshNeedPenaltyState(bool force = false)

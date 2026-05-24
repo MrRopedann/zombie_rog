@@ -45,15 +45,35 @@ public class GameSaveManager : MonoBehaviour
         return EnsureActive().SaveNow();
     }
 
+    public static bool SaveGame()
+    {
+        return SaveCurrentGame();
+    }
+
     public static bool LoadCurrentGame()
     {
         return EnsureActive().LoadNow();
+    }
+
+    public static bool LoadGame()
+    {
+        return LoadCurrentGame();
+    }
+
+    public static bool HasSave()
+    {
+        return SaveExists;
     }
 
     public static void DeleteCurrentSave()
     {
         if (ES3.FileExists(SaveFileName))
             ES3.DeleteFile(SaveFileName);
+    }
+
+    public static void DeleteSave()
+    {
+        DeleteCurrentSave();
     }
 
     private void Awake()
@@ -178,7 +198,9 @@ public class GameSaveManager : MonoBehaviour
             lootContainers = CaptureLootContainers(),
             worldItems = CaptureWorldItems(),
             zombies = CaptureZombies(),
-            saveableObjects = CaptureSaveableObjects()
+            saveableObjects = CaptureSaveableObjects(),
+            bunker = CaptureBunker(),
+            unlockedLocations = CaptureUnlockedLocations()
         };
 
         return data;
@@ -193,6 +215,7 @@ public class GameSaveManager : MonoBehaviour
         LoadZombiePrefabCache();
 
         RestoreSaveableObjects(data.saveableObjects);
+        RestoreBunker(data.bunker);
         RestorePlayers(data.players);
         RestoreAuthoritativeInventories(data.authoritativeInventories);
         RestoreLootContainers(data.lootContainers);
@@ -220,6 +243,7 @@ public class GameSaveManager : MonoBehaviour
             Transform root = ResolvePlayerRoot(stats);
             PlayerInventory inventory = ResolveInventory(stats);
             PlayerWeaponController weapons = ResolveWeaponController(stats);
+            CharacterProgression progression = ResolveProgression(stats);
 
             PlayerSaveData player = new PlayerSaveData
             {
@@ -243,6 +267,10 @@ public class GameSaveManager : MonoBehaviour
                 agilityModifier = stats.agility != null ? stats.agility.Modifier : 0f,
                 strengthBase = stats.strength != null ? stats.strength.BaseValue : 0f,
                 strengthModifier = stats.strength != null ? stats.strength.Modifier : 0f,
+                availableStatPoints = progression != null ? progression.availableStatPoints : 0,
+                durabilityPoints = progression != null ? progression.durabilityPoints : 0,
+                agilityPoints = progression != null ? progression.agilityPoints : 0,
+                strengthPoints = progression != null ? progression.strengthPoints : 0,
                 dead = stats.IsDead,
                 inventory = CaptureItemStacks(inventory != null ? inventory.Slots : null),
                 selectedWeaponIndex = weapons != null ? weapons.SelectedWeaponIndex : 0,
@@ -385,6 +413,20 @@ public class GameSaveManager : MonoBehaviour
         return result;
     }
 
+    private BunkerSaveData CaptureBunker()
+    {
+        BunkerManager bunkerManager = FindObjectOfType<BunkerManager>(true);
+        return bunkerManager != null ? bunkerManager.GetSaveData() : new BunkerSaveData();
+    }
+
+    private List<UnlockedLocationSaveData> CaptureUnlockedLocations()
+    {
+        BunkerSaveData bunker = CaptureBunker();
+        return bunker != null && bunker.unlockedLocations != null
+            ? new List<UnlockedLocationSaveData>(bunker.unlockedLocations)
+            : new List<UnlockedLocationSaveData>();
+    }
+
     private List<WeaponSaveData> CaptureWeapons(PlayerWeaponController controller)
     {
         List<WeaponSaveData> result = new();
@@ -469,6 +511,16 @@ public class GameSaveManager : MonoBehaviour
                 saved.strengthBase,
                 saved.strengthModifier,
                 saved.dead);
+
+            CharacterProgression progression = ResolveProgression(stats);
+            if (progression != null)
+            {
+                progression.ApplySavedProgression(
+                    saved.availableStatPoints,
+                    saved.durabilityPoints,
+                    saved.agilityPoints,
+                    saved.strengthPoints);
+            }
 
             if (!saved.dead)
             {
@@ -618,6 +670,16 @@ public class GameSaveManager : MonoBehaviour
             if (sceneObjects.TryGetValue(saved.saveId, out SaveableObject saveable) && saveable != null)
                 saveable.RestoreState(saved.active, saved.position, saved.rotation, saved.localScale);
         }
+    }
+
+    private void RestoreBunker(BunkerSaveData bunker)
+    {
+        if (bunker == null)
+            return;
+
+        BunkerManager bunkerManager = FindObjectOfType<BunkerManager>(true);
+        if (bunkerManager != null)
+            bunkerManager.LoadFromSaveData(bunker);
     }
 
     private void RestoreWeapons(PlayerWeaponController controller, PlayerSaveData saved)
@@ -817,6 +879,16 @@ public class GameSaveManager : MonoBehaviour
             stats.GetComponentInParent<PlayerInventory>();
     }
 
+    private static CharacterProgression ResolveProgression(CharacterStats stats)
+    {
+        if (stats == null)
+            return null;
+
+        return stats.GetComponent<CharacterProgression>() ??
+            stats.GetComponentInChildren<CharacterProgression>(true) ??
+            stats.GetComponentInParent<CharacterProgression>();
+    }
+
     private static PlayerWeaponController ResolveWeaponController(CharacterStats stats)
     {
         if (stats == null)
@@ -932,6 +1004,8 @@ public class GameSaveData
     public List<WorldItemSaveData> worldItems = new();
     public List<ZombieSaveData> zombies = new();
     public List<SaveableObjectData> saveableObjects = new();
+    public BunkerSaveData bunker = new();
+    public List<UnlockedLocationSaveData> unlockedLocations = new();
 }
 
 [Serializable]
@@ -957,10 +1031,43 @@ public class PlayerSaveData
     public float agilityModifier;
     public float strengthBase;
     public float strengthModifier;
+    public int availableStatPoints;
+    public int durabilityPoints;
+    public int agilityPoints;
+    public int strengthPoints;
     public bool dead;
     public int selectedWeaponIndex;
     public List<ItemStackSaveData> inventory = new();
     public List<WeaponSaveData> weapons = new();
+}
+
+[Serializable]
+public class InventorySaveData
+{
+    public List<InventorySlotSaveData> slots = new();
+}
+
+[Serializable]
+public class InventorySlotSaveData
+{
+    public string itemId;
+    public int amount;
+}
+
+[Serializable]
+public class BunkerSaveData
+{
+    public string bunkerId;
+    public InventorySaveData storage = new();
+    public List<UnlockedLocationSaveData> unlockedLocations = new();
+    public List<string> installedStationIds = new();
+}
+
+[Serializable]
+public class UnlockedLocationSaveData
+{
+    public string locationId;
+    public bool unlocked;
 }
 
 [Serializable]
