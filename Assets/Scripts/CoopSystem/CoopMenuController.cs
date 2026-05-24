@@ -50,11 +50,7 @@ public class CoopMenuController : MonoBehaviour
     [Header("Locations")]
     public List<CoopLocationOption> locations = new List<CoopLocationOption>
     {
-        new CoopLocationOption
-        {
-            displayName = "Demo City",
-            sceneName = "Demo_City_Universal_RenderPipeline"
-        }
+        new CoopLocationOption()
     };
 
     private CoopNetworkSession session;
@@ -123,7 +119,7 @@ public class CoopMenuController : MonoBehaviour
         if (session == null)
             session = CoopNetworkSession.GetOrCreate();
 
-        CoopLocationOption location = GetSelectedLocation();
+        CoopLocationOption location = GetBunkerLocation();
         string roomName = string.IsNullOrWhiteSpace(roomNameInput?.text) ? "Комната" : roomNameInput.text.Trim();
         int maxPlayers = ParseClamped(playerCountInput?.text, 2, 2, 8);
         int port = ParseClamped(hostPortInput?.text, CoopNetworkSession.DefaultPort, 1024, 65535);
@@ -240,6 +236,7 @@ public class CoopMenuController : MonoBehaviour
         locationDropdown.AddOptions(options);
         locationDropdown.value = Mathf.Clamp(locationDropdown.value, 0, locations.Count - 1);
         locationDropdown.RefreshShownValue();
+        SetLocationFieldVisible(false);
     }
 
     private void ApplyDefaults()
@@ -266,7 +263,7 @@ public class CoopMenuController : MonoBehaviour
             playerCountText.text = $"Игроки: {session.CurrentPlayers}/{session.MaxPlayers}";
 
         if (locationText != null)
-            locationText.text = $"Локация: {CoopSessionState.LocationDisplayName}";
+            locationText.text = $"Убежище: {CoopSessionState.LocationDisplayName}";
 
         if (startButton != null)
         {
@@ -279,24 +276,24 @@ public class CoopMenuController : MonoBehaviour
 
     private CoopLocationOption GetSelectedLocation()
     {
-        EnsureLocations();
-
-        int index = locationDropdown != null ? locationDropdown.value : 0;
-        return locations[Mathf.Clamp(index, 0, locations.Count - 1)];
+        return GetBunkerLocation();
     }
 
     private void EnsureLocations()
     {
-        if (locations != null && locations.Count > 0)
-            return;
+        if (locations == null)
+            locations = new List<CoopLocationOption>();
 
-        locations = new List<CoopLocationOption>
+        locations.Clear();
+        locations.Add(GetBunkerLocation());
+    }
+
+    private static CoopLocationOption GetBunkerLocation()
+    {
+        return new CoopLocationOption
         {
-            new CoopLocationOption
-            {
-                displayName = "Demo City",
-                sceneName = "Demo_City_Universal_RenderPipeline"
-            }
+            displayName = CoopSessionState.DefaultLocationDisplayName,
+            sceneName = CoopSessionState.DefaultSceneName
         };
     }
 
@@ -345,6 +342,7 @@ public class CoopMenuController : MonoBehaviour
         NormalizeInput(joinAddressInput);
         NormalizeInput(joinPortInput);
         NormalizeDropdown(locationDropdown);
+        SetLocationFieldVisible(false);
 
         NormalizeButton(createButton, PrimaryButtonHeight);
         NormalizeButton(connectButton, PrimaryButtonHeight);
@@ -451,6 +449,21 @@ public class CoopMenuController : MonoBehaviour
 
         SetLayoutHeight(dropdown.gameObject, FieldInputHeight);
         NormalizeFieldGroup(dropdown.transform.parent);
+    }
+
+    private void SetLocationFieldVisible(bool visible)
+    {
+        if (locationDropdown == null)
+            return;
+
+        Transform parent = locationDropdown.transform.parent;
+        if (parent != null && parent.name.StartsWith("Field_"))
+        {
+            parent.gameObject.SetActive(visible);
+            return;
+        }
+
+        locationDropdown.gameObject.SetActive(visible);
     }
 
     private static void NormalizeFieldGroup(Transform group)

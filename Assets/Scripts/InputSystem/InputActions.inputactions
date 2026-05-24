@@ -493,17 +493,6 @@
                 },
                 {
                     "name": "",
-                    "id": "6f2c0dea-7ff6-40e5-b29c-c8e786d4db33",
-                    "path": "<Keyboard>/tab",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": ";KeyboardMouse",
-                    "action": "SwitchWeapon",
-                    "isComposite": false,
-                    "isPartOfComposite": false
-                },
-                {
-                    "name": "",
                     "id": "5088d450-bc28-458d-a3e8-392d86f3dd3a",
                     "path": "<Mouse>/rightButton",
                     "interactions": "",

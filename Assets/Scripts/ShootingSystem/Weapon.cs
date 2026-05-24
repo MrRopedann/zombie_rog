@@ -220,6 +220,46 @@ public class Weapon : MonoBehaviour
         return true;
     }
 
+    public void ApplyNetworkAmmoState(int currentAmmo, int reserveAmmo, bool isReloading)
+    {
+        if (_reloadCoroutine != null)
+        {
+            StopCoroutine(_reloadCoroutine);
+            _reloadCoroutine = null;
+        }
+
+        int nextCurrentAmmo = InfiniteAmmo
+            ? MagazineSize
+            : Mathf.Clamp(currentAmmo, 0, MagazineSize);
+        int nextReserveAmmo = InfiniteAmmo || InfiniteReserveAmmo
+            ? Mathf.Max(0, reserveAmmo)
+            : Mathf.Max(0, reserveAmmo);
+
+        bool ammoChanged = CurrentAmmo != nextCurrentAmmo || ReserveAmmo != nextReserveAmmo;
+        bool reloadChanged = IsReloading != isReloading;
+
+        CurrentAmmo = nextCurrentAmmo;
+        ReserveAmmo = nextReserveAmmo;
+        IsReloading = isReloading;
+
+        if (reloadChanged)
+        {
+            if (isReloading)
+            {
+                PlaySound(GetReloadStartSounds(), GetReloadVolume());
+                ReloadStarted?.Invoke(this);
+            }
+            else
+            {
+                PlaySound(GetReloadCompleteSounds(), GetReloadVolume());
+                ReloadCompleted?.Invoke(this);
+            }
+        }
+
+        if (ammoChanged)
+            NotifyAmmoChanged();
+    }
+
     public void ResetAmmo()
     {
         int startMagazineAmmo = weaponDefinition != null

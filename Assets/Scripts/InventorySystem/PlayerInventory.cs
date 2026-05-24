@@ -41,6 +41,37 @@ public class PlayerInventory : MonoBehaviour
         return index >= 0 && index < slots.Count ? slots[index] : null;
     }
 
+    public void ClearInventory()
+    {
+        if (slots.Count == 0)
+        {
+            return;
+        }
+
+        slots.Clear();
+        NotifyInventoryChanged();
+    }
+
+    public void ReplaceContents(IEnumerable<InventorySlot> newSlots)
+    {
+        slots.Clear();
+
+        if (newSlots != null)
+        {
+            foreach (InventorySlot slot in newSlots)
+            {
+                if (slot == null || slot.item == null || slot.amount <= 0)
+                {
+                    continue;
+                }
+
+                AddItem(slot.item, slot.amount);
+            }
+        }
+
+        NotifyInventoryChanged();
+    }
+
     public int GetItemAmount(ItemSO item)
     {
         if (item == null)

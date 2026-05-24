@@ -113,6 +113,9 @@ public class CharacterStats : MonoBehaviour
 
     private void Awake()
     {
+        if (!CoopSessionState.IsCoopSession)
+            PlayerCharacterRepository.ApplySelectedTo(this);
+
         RecalculateAllStats();
 
         if (!isInitialized)
@@ -316,6 +319,135 @@ public class CharacterStats : MonoBehaviour
 
         if (currentHealth <= 0f)
             Die();
+    }
+
+    public void ApplyNetworkState(
+        float health,
+        float maxHealth,
+        float hunger,
+        float maxHunger,
+        float thirst,
+        float maxThirst,
+        float stamina,
+        float maxStamina,
+        int experience,
+        int experienceToNextLevel,
+        int level,
+        bool dead)
+    {
+        bool wasDead = IsDead;
+        float previousHealth = currentHealth;
+        float previousHunger = currentHunger;
+        float previousThirst = currentThirst;
+        float previousStamina = currentStamina;
+        int previousLevel = playerLevel;
+
+        MaxHealth = Mathf.Max(1f, maxHealth > 0f ? maxHealth : MaxHealth);
+        MaxHunger = Mathf.Max(1f, maxHunger > 0f ? maxHunger : MaxHunger);
+        MaxThirst = Mathf.Max(1f, maxThirst > 0f ? maxThirst : MaxThirst);
+        MaxStamina = Mathf.Max(1f, maxStamina > 0f ? maxStamina : MaxStamina);
+        CurrentStaminaLimit = MaxStamina;
+
+        currentHealth = dead ? 0f : Mathf.Clamp(health, 0f, MaxHealth);
+        currentHunger = Mathf.Clamp(hunger, 0f, MaxHunger);
+        currentThirst = Mathf.Clamp(thirst, 0f, MaxThirst);
+        currentStamina = Mathf.Clamp(stamina, 0f, CurrentStaminaLimit);
+        currentExp = Mathf.Max(0, experience);
+        expToNextLevel = Mathf.Max(0, experienceToNextLevel);
+        playerLevel = Mathf.Max(1, level);
+        IsDead = dead || currentHealth <= 0f;
+
+        OnStatsRecalculated?.Invoke();
+
+        if (!Mathf.Approximately(previousHealth, currentHealth))
+            OnHealthChanged?.Invoke();
+
+        if (!Mathf.Approximately(previousHunger, currentHunger))
+            OnHungerChanged?.Invoke();
+
+        if (!Mathf.Approximately(previousThirst, currentThirst))
+            OnThirstChanged?.Invoke();
+
+        if (!Mathf.Approximately(previousStamina, currentStamina))
+            OnStaminaChanged?.Invoke();
+
+        if (previousLevel != playerLevel)
+            OnLevelChanged?.Invoke();
+
+        if (!wasDead && IsDead)
+            OnDeath?.Invoke();
+        else if (wasDead && !IsDead)
+            OnRevived?.Invoke();
+    }
+
+    public void ApplySavedState(
+        int savedPlayerID,
+        string savedPlayerName,
+        int savedLevel,
+        int savedExperience,
+        int savedExperienceToNextLevel,
+        float savedHealth,
+        float savedArmor,
+        float savedHunger,
+        float savedThirst,
+        float savedStamina,
+        float savedDurabilityBase,
+        float savedDurabilityModifier,
+        float savedAgilityBase,
+        float savedAgilityModifier,
+        float savedStrengthBase,
+        float savedStrengthModifier,
+        bool savedDead)
+    {
+        bool wasDead = IsDead;
+
+        playerID = Mathf.Max(0, savedPlayerID);
+        if (!string.IsNullOrWhiteSpace(savedPlayerName))
+            playerName = savedPlayerName.Trim();
+
+        playerLevel = Mathf.Max(1, savedLevel);
+        currentExp = Mathf.Max(0, savedExperience);
+        expToNextLevel = Mathf.Max(0, savedExperienceToNextLevel);
+
+        RestoreBaseStat(durability, savedDurabilityBase, savedDurabilityModifier);
+        RestoreBaseStat(agility, savedAgilityBase, savedAgilityModifier);
+        RestoreBaseStat(strength, savedStrengthBase, savedStrengthModifier);
+
+        currentHunger = Mathf.Max(0f, savedHunger);
+        currentThirst = Mathf.Max(0f, savedThirst);
+        RecalculateAllStats();
+
+        currentHealth = savedDead ? 0f : Mathf.Clamp(savedHealth, 0f, MaxHealth);
+        currentArmor = Mathf.Clamp(savedArmor, 0f, MaxArmor);
+        currentHunger = Mathf.Clamp(savedHunger, 0f, MaxHunger);
+        currentThirst = Mathf.Clamp(savedThirst, 0f, MaxThirst);
+        currentStamina = Mathf.Clamp(savedStamina, 0f, CurrentStaminaLimit);
+        IsDead = savedDead || currentHealth <= 0f;
+        isInitialized = true;
+
+        RefreshNeedPenaltyState(force: true);
+
+        OnStatsRecalculated?.Invoke();
+        OnHealthChanged?.Invoke();
+        OnHungerChanged?.Invoke();
+        OnThirstChanged?.Invoke();
+        OnStaminaChanged?.Invoke();
+        OnLevelChanged?.Invoke();
+
+        if (!wasDead && IsDead)
+            OnDeath?.Invoke();
+        else if (wasDead && !IsDead)
+            OnRevived?.Invoke();
+    }
+
+    private static void RestoreBaseStat(BaseStat stat, float baseValue, float modifier)
+    {
+        if (stat == null)
+            return;
+
+        stat.SetBaseValue(Mathf.Max(0f, baseValue));
+        stat.ClearModifier();
+        stat.SetModifier(modifier);
     }
 
     public void Revive(float health)

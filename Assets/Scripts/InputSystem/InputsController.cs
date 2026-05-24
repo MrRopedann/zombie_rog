@@ -241,6 +241,13 @@ public class InputsController : MonoBehaviour
 
     private void OnSwitchWeaponPerformed(InputAction.CallbackContext context)
     {
+#if ENABLE_INPUT_SYSTEM
+        if (context.control != null && string.Equals(context.control.path, "/Keyboard/tab", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+#endif
+
         OnPlayerSwithcWeapon?.Invoke();
     }
 

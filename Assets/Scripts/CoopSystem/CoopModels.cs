@@ -4,8 +4,8 @@ using UnityEngine;
 [Serializable]
 public class CoopLocationOption
 {
-    public string displayName = "Demo City";
-    public string sceneName = "Demo_City_Universal_RenderPipeline";
+    public string displayName = CoopSessionState.DefaultLocationDisplayName;
+    public string sceneName = CoopSessionState.DefaultSceneName;
 }
 
 [Serializable]
@@ -34,6 +34,9 @@ public enum CoopSessionRole
 
 public static class CoopSessionState
 {
+    public const string DefaultLocationDisplayName = "Бункер";
+    public const string DefaultSceneName = "Bunker";
+
     public static bool IsCoopSession { get; private set; }
     public static CoopSessionRole Role { get; private set; } = CoopSessionRole.None;
     public static string RoomName { get; private set; } = string.Empty;
@@ -41,8 +44,8 @@ public static class CoopSessionState
     public static string HostAddress { get; private set; } = string.Empty;
     public static int Port { get; private set; } = 7777;
     public static int MaxPlayers { get; private set; } = 2;
-    public static string LocationDisplayName { get; private set; } = "Demo City";
-    public static string SceneName { get; private set; } = "Demo_City_Universal_RenderPipeline";
+    public static string LocationDisplayName { get; private set; } = DefaultLocationDisplayName;
+    public static string SceneName { get; private set; } = DefaultSceneName;
 
     public static bool IsHost => Role == CoopSessionRole.Host;
     public static bool IsClient => Role == CoopSessionRole.Client;
@@ -56,8 +59,8 @@ public static class CoopSessionState
         HostAddress = Sanitize(hostAddress, "127.0.0.1");
         Port = Mathf.Clamp(settings.port, 1024, 65535);
         MaxPlayers = Mathf.Clamp(settings.maxPlayers, 2, 8);
-        LocationDisplayName = Sanitize(settings.location?.displayName, "Demo City");
-        SceneName = Sanitize(settings.location?.sceneName, "Demo_City_Universal_RenderPipeline");
+        LocationDisplayName = Sanitize(settings.location?.displayName, DefaultLocationDisplayName);
+        SceneName = Sanitize(settings.location?.sceneName, DefaultSceneName);
     }
 
     public static void ConfigureClient(
@@ -76,8 +79,8 @@ public static class CoopSessionState
         HostAddress = Sanitize(hostAddress, "127.0.0.1");
         Port = Mathf.Clamp(port, 1024, 65535);
         MaxPlayers = Mathf.Clamp(maxPlayers, 2, 8);
-        LocationDisplayName = Sanitize(locationDisplayName, "Demo City");
-        SceneName = Sanitize(sceneName, "Demo_City_Universal_RenderPipeline");
+        LocationDisplayName = Sanitize(locationDisplayName, DefaultLocationDisplayName);
+        SceneName = Sanitize(sceneName, DefaultSceneName);
     }
 
     public static void Clear()
@@ -89,8 +92,8 @@ public static class CoopSessionState
         HostAddress = string.Empty;
         Port = 7777;
         MaxPlayers = 2;
-        LocationDisplayName = "Demo City";
-        SceneName = "Demo_City_Universal_RenderPipeline";
+        LocationDisplayName = DefaultLocationDisplayName;
+        SceneName = DefaultSceneName;
     }
 
     private static string Sanitize(string value, string fallback)

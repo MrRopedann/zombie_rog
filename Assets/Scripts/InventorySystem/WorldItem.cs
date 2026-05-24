@@ -22,6 +22,7 @@ public class WorldItem : MonoBehaviour
     public int Amount => Mathf.Max(1, amount);
     public int NetworkItemId => networkItemId;
     public bool RemoteNetworkProxy => remoteNetworkProxy;
+    public bool IsPickedUp => _isPickedUp;
 
     private bool _isPickedUp;
     private Rigidbody _rigidbody;
@@ -46,6 +47,7 @@ public class WorldItem : MonoBehaviour
             WorldItem worldItem = instance.GetComponent<WorldItem>() ??
                 instance.GetComponentInChildren<WorldItem>(true);
             PreparePickup(worldItem, item);
+            worldItem?.SnapAboveGround();
             worldItem?.ApplyLaunchVelocity(velocity, angularVelocity);
             return worldItem;
         }
@@ -56,6 +58,7 @@ public class WorldItem : MonoBehaviour
         WorldItem generatedItem = root.AddComponent<WorldItem>();
         CreateVisual(root.transform, item);
         PreparePickup(generatedItem, item);
+        generatedItem.SnapAboveGround();
         generatedItem.ApplyLaunchVelocity(velocity, angularVelocity);
 
         return generatedItem;
@@ -178,7 +181,9 @@ public class WorldItem : MonoBehaviour
         _rigidbody.interpolation = RigidbodyInterpolation.Interpolate;
         _rigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
 
-        if (GetComponent<BoxCollider>() == null && GetComponent<CapsuleCollider>() == null && GetComponent<MeshCollider>() == null)
+        ConfigureSolidCollidersForDynamicBody();
+
+        if (!HasEnabledSolidCollider())
         {
             BoxCollider boxCollider = gameObject.AddComponent<BoxCollider>();
             Bounds bounds = CalculateLocalRendererBounds(transform);
@@ -186,6 +191,94 @@ public class WorldItem : MonoBehaviour
             boxCollider.size = Vector3.Max(bounds.size + Vector3.one * physicalColliderPadding, Vector3.one * 0.12f);
             boxCollider.isTrigger = false;
         }
+    }
+
+    private void ConfigureSolidCollidersForDynamicBody()
+    {
+        foreach (MeshCollider meshCollider in GetComponentsInChildren<MeshCollider>(true))
+        {
+            if (meshCollider == null || !meshCollider.enabled || meshCollider.isTrigger)
+                continue;
+
+            meshCollider.convex = true;
+        }
+    }
+
+    private bool HasEnabledSolidCollider()
+    {
+        foreach (Collider itemCollider in GetComponentsInChildren<Collider>(true))
+        {
+            if (itemCollider != null && itemCollider.enabled && !itemCollider.isTrigger)
+                return true;
+        }
+
+        return false;
+    }
+
+    private void SnapAboveGround()
+    {
+        if (!physicalWorldItem)
+            return;
+
+        Bounds bounds;
+        if (!TryCalculateSolidColliderBounds(out bounds))
+            return;
+
+        Vector3 origin = bounds.center + Vector3.up * 1.5f;
+        if (!TryFindGroundBelow(origin, 5f, out RaycastHit hit))
+            return;
+
+        float targetBottom = hit.point.y + 0.03f;
+        if (bounds.min.y < targetBottom)
+            transform.position += Vector3.up * (targetBottom - bounds.min.y);
+    }
+
+    private bool TryCalculateSolidColliderBounds(out Bounds bounds)
+    {
+        bounds = new Bounds(transform.position, Vector3.zero);
+        bool hasBounds = false;
+
+        foreach (Collider itemCollider in GetComponentsInChildren<Collider>(true))
+        {
+            if (itemCollider == null || !itemCollider.enabled || itemCollider.isTrigger)
+                continue;
+
+            if (!hasBounds)
+            {
+                bounds = itemCollider.bounds;
+                hasBounds = true;
+            }
+            else
+            {
+                bounds.Encapsulate(itemCollider.bounds);
+            }
+        }
+
+        return hasBounds;
+    }
+
+    private bool TryFindGroundBelow(Vector3 origin, float distance, out RaycastHit bestHit)
+    {
+        bestHit = default;
+        bool found = false;
+        float bestDistance = float.MaxValue;
+        RaycastHit[] hits = Physics.RaycastAll(origin, Vector3.down, distance, ~0, QueryTriggerInteraction.Ignore);
+
+        for (int i = 0; i < hits.Length; i++)
+        {
+            Collider hitCollider = hits[i].collider;
+            if (hitCollider == null || hitCollider.transform == transform || hitCollider.transform.IsChildOf(transform))
+                continue;
+
+            if (hits[i].distance >= bestDistance)
+                continue;
+
+            bestDistance = hits[i].distance;
+            bestHit = hits[i];
+            found = true;
+        }
+
+        return found;
     }
 
     private static void EnsureTriggerCollider(Transform target, float radius)

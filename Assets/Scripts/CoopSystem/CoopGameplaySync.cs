@@ -34,6 +34,7 @@ public class CoopGameplaySync : MonoBehaviour
     private const int MaxProcessedServerShotKeys = 1024;
     private const float AuthorityCheckInterval = 0.75f;
     private const float LootContainerScanInterval = 1.0f;
+    private const float InventoryResyncInterval = 2.0f;
     private const float PlayerDeathCheckInterval = 0.2f;
     private const float ReviveHoldSeconds = 3f;
     private const float ReviveMarkerDelaySeconds = 5f;
@@ -44,6 +45,7 @@ public class CoopGameplaySync : MonoBehaviour
     private const byte PlayerFlagAim = 1 << 0;
     private const byte PlayerFlagFire = 1 << 1;
     private const byte PlayerFlagDead = 1 << 2;
+    private const byte PlayerFlagReloading = 1 << 3;
     private const byte GameOverChoiceRestart = 1;
     private const byte GameOverChoiceLobby = 2;
     private const float RemoteAimDistance = 80f;
@@ -75,6 +77,8 @@ public class CoopGameplaySync : MonoBehaviour
     private readonly Dictionary<string, ItemSO> itemsById = new();
     private readonly Dictionary<int, WorldItem> networkWorldItems = new();
     private readonly Dictionary<int, Dictionary<string, int>> serverPlayerInventoryItems = new();
+    private readonly Dictionary<int, uint> serverInventorySnapshotSequences = new();
+    private readonly HashSet<int> serverKnownPlayerInventories = new();
     private readonly HashSet<int> pendingWorldItemPickups = new();
     private readonly Dictionary<ulong, Projectile> remoteProjectiles = new();
     private readonly Dictionary<int, CoopReviveMarker> reviveMarkers = new();
@@ -85,7 +89,9 @@ public class CoopGameplaySync : MonoBehaviour
     private readonly HashSet<int> spawnedZombieIds = new();
     private readonly HashSet<Weapon> subscribedWeapons = new();
     private readonly List<CoopAllyHud.AllyInfo> allyInfoBuffer = new();
+    private readonly List<CoopScoreboardUI.PlayerRowInfo> scoreboardInfoBuffer = new();
     private readonly List<int> ownerIdBuffer = new();
+    private readonly Dictionary<int, PlayerCombatStats> playerCombatStats = new();
 
     private CoopNetworkSession session;
     private GameObject playerPrefab;
@@ -95,9 +101,11 @@ public class CoopGameplaySync : MonoBehaviour
     private Transform localPlayerMotionTransform;
     private PlayerWeaponController localWeaponController;
     private CharacterStats localCharacterStats;
+    private PlayerInventory localPlayerInventory;
     private uint localSequence;
     private uint localShotSequence;
     private uint localProjectileSequence;
+    private uint localInventorySequence;
     private uint zombieSequence;
     private uint lootSequence;
     private int lastLocalZombieDamageRequestId;
@@ -110,10 +118,14 @@ public class CoopGameplaySync : MonoBehaviour
     private float nextZombieRewindRecordTime;
     private float nextAuthorityCheckTime;
     private float nextLootContainerScanTime;
+    private float nextInventoryResyncTime;
     private float nextPlayerDeathCheckTime;
     private float ignoreDeathStateUntilTime;
     private bool gameOverVoteStarted;
     private bool gameOverResultApplied;
+    private bool hasSentLocalInventory;
+    private int lastLocalInventoryHash;
+    private int serverZombieDamageAttributionOwnerId;
 
     public static bool IsApplyingNetworkDamage => networkDamageScopeDepth > 0;
     public static bool IsApplyingNetworkLootState => networkLootScopeDepth > 0;
@@ -156,6 +168,14 @@ public class CoopGameplaySync : MonoBehaviour
         public int state;
         public byte flags;
         public float time;
+    }
+
+    private struct PlayerCombatStats
+    {
+        public int zombieKills;
+        public float damageDealt;
+        public int deaths;
+        public int revives;
     }
 
     public static void EnsureActive(CoopNetworkSession networkSession)
@@ -311,6 +331,18 @@ public class CoopGameplaySync : MonoBehaviour
         if (!container.CanOpen(stats))
             return true;
 
+        int requestedAmount = Mathf.Max(1, amount);
+        if (fromContainer)
+        {
+            if (!inventory.CanAddItem(item, requestedAmount))
+                return true;
+        }
+        else
+        {
+            if (inventory.GetItemAmount(item) < requestedAmount || !container.CanAddItem(item, requestedAmount))
+                return true;
+        }
+
         int ownerId = instance.session.LocalNetworkId;
         if (ownerId <= 0)
             return true;
@@ -327,7 +359,7 @@ public class CoopGameplaySync : MonoBehaviour
         {
             ContainerId = container.NetworkId,
             ItemId = GetItemNetworkId(item),
-            Amount = amount,
+            Amount = requestedAmount,
             FromContainer = fromContainer ? (byte)1 : (byte)0
         });
 
@@ -402,7 +434,7 @@ public class CoopGameplaySync : MonoBehaviour
             if (!inventory.RemoveItem(item, amount))
                 return true;
 
-            instance.RemoveServerInventoryItem(ownerId, item, amount, true);
+            instance.RemoveServerInventoryItem(ownerId, item, amount, !instance.HasKnownServerInventory(ownerId));
             instance.SpawnAndBroadcastWorldItem(ownerId, item, amount, position, rotation, velocity, angularVelocity);
             return true;
         }
@@ -455,7 +487,7 @@ public class CoopGameplaySync : MonoBehaviour
 
         if (instance.session.IsHost)
         {
-            instance.CompletePlayerRevive(deadOwnerId, revivePosition, reviveRotation);
+            instance.CompletePlayerRevive(deadOwnerId, revivePosition, reviveRotation, reviverOwnerId);
             return;
         }
 
@@ -491,6 +523,22 @@ public class CoopGameplaySync : MonoBehaviour
             OwnerId = ownerId,
             Choice = resolvedChoice
         });
+    }
+
+    public static Dictionary<int, Dictionary<string, int>> ExportAuthoritativeInventoryStacks()
+    {
+        if (instance == null || instance.session == null || !CoopSessionState.IsCoopSession || !instance.session.IsHost)
+            return null;
+
+        return instance.CloneAuthoritativeInventoriesForSave();
+    }
+
+    public static void ImportAuthoritativeInventoryStacks(Dictionary<int, Dictionary<string, int>> inventories)
+    {
+        if (instance == null || instance.session == null || !CoopSessionState.IsCoopSession || !instance.session.IsHost)
+            return;
+
+        instance.ReplaceAuthoritativeInventoriesFromSave(inventories);
     }
 
     public static bool TryGetLocalReviveInteractor(
@@ -579,6 +627,7 @@ public class CoopGameplaySync : MonoBehaviour
         ReceiveZombieSpawnsOnClient();
         ReceiveZombieSnapshotsOnClient();
         ReceiveZombieDamageEventsOnClient();
+        ReceivePlayerInventorySnapshotsOnServer();
         ReceiveLootContainerRequestsOnServer();
         ReceiveLootTransferRequestsOnServer();
         ReceiveLootContainerStateOnServer();
@@ -594,9 +643,11 @@ public class CoopGameplaySync : MonoBehaviour
             return;
 
         EnsureLocalPlayer(localOwnerId);
+        EnsureLocalInventory(localOwnerId);
         ConfigureSceneAuthority();
         RegisterLootContainers();
         UpdateAllyHud(localOwnerId);
+        UpdateScoreboard(localOwnerId);
         UpdatePlayerDeathState(localOwnerId);
         SendLocalPlayerSnapshot(localOwnerId);
 
@@ -683,9 +734,66 @@ public class CoopGameplaySync : MonoBehaviour
         localCharacterStats = playerRoot.GetComponentInChildren<CharacterStats>(true);
 
         if (localCharacterStats != null)
+        {
             localCharacterStats.playerID = ownerId;
+            PlayerCharacterRepository.ApplySelectedTo(localCharacterStats);
+        }
 
         SubscribeLocalWeapons();
+    }
+
+    private void EnsureLocalInventory(int ownerId)
+    {
+        if (ownerId <= 0)
+            return;
+
+        PlayerInventory inventory = ResolveLocalPlayerInventory();
+        if (inventory == null)
+            return;
+
+        if (localPlayerInventory != inventory)
+        {
+            if (localPlayerInventory != null)
+                localPlayerInventory.InventoryChanged -= HandleLocalInventoryChanged;
+
+            localPlayerInventory = inventory;
+            localPlayerInventory.InventoryChanged -= HandleLocalInventoryChanged;
+            localPlayerInventory.InventoryChanged += HandleLocalInventoryChanged;
+            hasSentLocalInventory = false;
+        }
+
+        SendLocalInventorySnapshot(ownerId, false);
+    }
+
+    private PlayerInventory ResolveLocalPlayerInventory()
+    {
+        if (localCharacterStats != null)
+        {
+            return localCharacterStats.GetComponent<PlayerInventory>() ??
+                localCharacterStats.GetComponentInChildren<PlayerInventory>(true) ??
+                localCharacterStats.GetComponentInParent<PlayerInventory>();
+        }
+
+        if (localPlayerMotionTransform != null)
+        {
+            Transform root = localPlayerMotionTransform.root != null ? localPlayerMotionTransform.root : localPlayerMotionTransform;
+            return root.GetComponentInChildren<PlayerInventory>(true) ??
+                root.GetComponentInParent<PlayerInventory>();
+        }
+
+        return null;
+    }
+
+    private void HandleLocalInventoryChanged()
+    {
+        if (session == null || !CoopSessionState.IsCoopSession)
+            return;
+
+        int ownerId = session.LocalNetworkId;
+        if (ownerId <= 0)
+            return;
+
+        SendLocalInventorySnapshot(ownerId, true);
     }
 
     private static Transform FindLocalPlayerMotionTransform()
@@ -739,6 +847,9 @@ public class CoopGameplaySync : MonoBehaviour
                 continue;
 
             weapon.ShotFired += HandleLocalWeaponShot;
+            weapon.AmmoChanged += HandleLocalWeaponAmmoChanged;
+            weapon.ReloadStarted += HandleLocalWeaponReloadChanged;
+            weapon.ReloadCompleted += HandleLocalWeaponReloadChanged;
             subscribedWeapons.Add(weapon);
         }
     }
@@ -746,6 +857,16 @@ public class CoopGameplaySync : MonoBehaviour
     private void HandleCurrentWeaponChanged(Weapon weapon)
     {
         SubscribeLocalWeapons();
+        SendLocalPlayerSnapshot(session != null ? session.LocalNetworkId : 0, force: true);
+    }
+
+    private void HandleLocalWeaponAmmoChanged(Weapon weapon, int currentAmmo, int reserveAmmo)
+    {
+        SendLocalPlayerSnapshot(session != null ? session.LocalNetworkId : 0, force: true);
+    }
+
+    private void HandleLocalWeaponReloadChanged(Weapon weapon)
+    {
         SendLocalPlayerSnapshot(session != null ? session.LocalNetworkId : 0, force: true);
     }
 
@@ -857,6 +978,14 @@ public class CoopGameplaySync : MonoBehaviour
         if (localCharacterStats != null && localCharacterStats.IsDead)
             flags |= PlayerFlagDead;
 
+        Weapon currentWeapon = localWeaponController != null ? localWeaponController.CurrentWeapon : null;
+        if (currentWeapon != null && currentWeapon.IsReloading)
+            flags |= PlayerFlagReloading;
+
+        PlayerCombatStats combatStats = GetPlayerCombatStats(ownerId);
+        int pingMs = ResolveLocalPingMs(ownerId);
+        int score = CalculatePlayerScore(combatStats, localCharacterStats != null ? localCharacterStats.playerLevel : 1);
+
         SendClientRpc(new CoopPlayerSnapshotRpc
         {
             OwnerId = ownerId,
@@ -867,6 +996,23 @@ public class CoopGameplaySync : MonoBehaviour
             Flags = flags,
             Health = localCharacterStats != null ? localCharacterStats.currentHealth : 100f,
             MaxHealth = localCharacterStats != null ? Mathf.Max(1f, localCharacterStats.MaxHealth) : 100f,
+            Hunger = localCharacterStats != null ? localCharacterStats.currentHunger : 100f,
+            MaxHunger = localCharacterStats != null ? Mathf.Max(1f, localCharacterStats.MaxHunger) : 100f,
+            Thirst = localCharacterStats != null ? localCharacterStats.currentThirst : 100f,
+            MaxThirst = localCharacterStats != null ? Mathf.Max(1f, localCharacterStats.MaxThirst) : 100f,
+            Stamina = localCharacterStats != null ? localCharacterStats.currentStamina : 100f,
+            MaxStamina = localCharacterStats != null ? Mathf.Max(1f, localCharacterStats.MaxStamina) : 100f,
+            CurrentAmmo = currentWeapon != null ? currentWeapon.CurrentAmmo : -1,
+            ReserveAmmo = currentWeapon != null ? currentWeapon.ReserveAmmo : -1,
+            Level = localCharacterStats != null ? Mathf.Max(1, localCharacterStats.playerLevel) : 1,
+            Experience = localCharacterStats != null ? Mathf.Max(0, localCharacterStats.currentExp) : 0,
+            ExperienceToNextLevel = localCharacterStats != null ? Mathf.Max(0, localCharacterStats.expToNextLevel) : 0,
+            ZombieKills = combatStats.zombieKills,
+            DamageDealt = combatStats.damageDealt,
+            Deaths = combatStats.deaths,
+            Revives = combatStats.revives,
+            PingMs = pingMs,
+            Score = score,
             PlayerName = localCharacterStats != null && !string.IsNullOrWhiteSpace(localCharacterStats.playerName)
                 ? localCharacterStats.playerName
                 : $"Player {ownerId}",
@@ -898,6 +1044,7 @@ public class CoopGameplaySync : MonoBehaviour
                 snapshot.OwnerId = ownerId;
 
             UpdateClientClockOffset(snapshot.OwnerId, snapshot.ClientTime);
+            ApplyAuthoritativePlayerStats(ref snapshot);
 
             if (!ShouldAcceptPlayerSnapshot(snapshot, serverPlayerSnapshotSequences))
             {
@@ -929,7 +1076,12 @@ public class CoopGameplaySync : MonoBehaviour
         for (int i = 0; i < entities.Length; i++)
         {
             CoopPlayerSnapshotRpc snapshot = snapshots[i];
-            if (snapshot.OwnerId > 0 && snapshot.OwnerId != localOwnerId)
+            if (snapshot.OwnerId > 0 && snapshot.OwnerId == localOwnerId)
+            {
+                CachePlayerCombatStats(snapshot);
+                lastPlayerSnapshots[snapshot.OwnerId] = snapshot;
+            }
+            else if (snapshot.OwnerId > 0 && snapshot.OwnerId != localOwnerId)
             {
                 if (!ShouldAcceptPlayerSnapshot(snapshot, clientPlayerSnapshotSequences))
                 {
@@ -961,9 +1113,7 @@ public class CoopGameplaySync : MonoBehaviour
 
         networkTransform.SetTarget(snapshot.Position, snapshot.Rotation);
 
-        PlayerWeaponController weaponController = GetNetworkComponent<PlayerWeaponController>(identity);
-        if (weaponController != null)
-            weaponController.SetSelectedWeaponIndex(snapshot.WeaponIndex);
+        ApplyRemoteWeaponState(identity, snapshot);
 
         CharacterStats stats = GetNetworkComponent<CharacterStats>(identity);
         bool wasDeadOrRagdoll = IsRemotePlayerInDeathState(snapshot.OwnerId, identity, stats);
@@ -971,7 +1121,19 @@ public class CoopGameplaySync : MonoBehaviour
         if (isDead)
         {
             if (stats != null)
-                stats.ApplyNetworkHealth(snapshot.Health);
+                stats.ApplyNetworkState(
+                    snapshot.Health,
+                    snapshot.MaxHealth,
+                    snapshot.Hunger,
+                    snapshot.MaxHunger,
+                    snapshot.Thirst,
+                    snapshot.MaxThirst,
+                    snapshot.Stamina,
+                    snapshot.MaxStamina,
+                    snapshot.Experience,
+                    snapshot.ExperienceToNextLevel,
+                    snapshot.Level,
+                    true);
 
             MarkPlayerDead(snapshot.OwnerId, snapshot.Position, snapshot.Rotation, false);
             ActivateRemotePlayerRagdoll(identity);
@@ -980,10 +1142,19 @@ public class CoopGameplaySync : MonoBehaviour
         {
             if (stats != null)
             {
-                if (stats.IsDead)
-                    stats.Revive(Mathf.Max(1f, snapshot.Health));
-                else
-                    stats.ApplyNetworkHealth(snapshot.Health);
+                stats.ApplyNetworkState(
+                    snapshot.Health,
+                    snapshot.MaxHealth,
+                    snapshot.Hunger,
+                    snapshot.MaxHunger,
+                    snapshot.Thirst,
+                    snapshot.MaxThirst,
+                    snapshot.Stamina,
+                    snapshot.MaxStamina,
+                    snapshot.Experience,
+                    snapshot.ExperienceToNextLevel,
+                    snapshot.Level,
+                    false);
             }
 
             if (wasDeadOrRagdoll)
@@ -991,6 +1162,22 @@ public class CoopGameplaySync : MonoBehaviour
         }
 
         ApplyRemotePlayerVisualState(identity, snapshot);
+    }
+
+    private static void ApplyRemoteWeaponState(CoopNetworkIdentity identity, CoopPlayerSnapshotRpc snapshot)
+    {
+        PlayerWeaponController weaponController = GetNetworkComponent<PlayerWeaponController>(identity);
+        if (weaponController == null)
+            return;
+
+        weaponController.SetSelectedWeaponIndex(snapshot.WeaponIndex);
+
+        Weapon weapon = weaponController.GetCurrentWeapon();
+        if (weapon == null || snapshot.CurrentAmmo < 0 || snapshot.ReserveAmmo < 0)
+            return;
+
+        bool isReloading = (snapshot.Flags & PlayerFlagReloading) != 0;
+        weapon.ApplyNetworkAmmoState(snapshot.CurrentAmmo, snapshot.ReserveAmmo, isReloading);
     }
 
     private bool ShouldAcceptPlayerSnapshot(CoopPlayerSnapshotRpc snapshot, Dictionary<int, uint> sequenceMap)
@@ -1023,6 +1210,126 @@ public class CoopGameplaySync : MonoBehaviour
             serverClientClockOffsets[ownerId] = Mathf.Lerp(existingOffset, rawOffset, 0.1f);
         else
             serverClientClockOffsets[ownerId] = rawOffset;
+    }
+
+    private void ApplyAuthoritativePlayerStats(ref CoopPlayerSnapshotRpc snapshot)
+    {
+        PlayerCombatStats combatStats = GetPlayerCombatStats(snapshot.OwnerId);
+        snapshot.ZombieKills = combatStats.zombieKills;
+        snapshot.DamageDealt = combatStats.damageDealt;
+        snapshot.Deaths = combatStats.deaths;
+        snapshot.Revives = combatStats.revives;
+        snapshot.PingMs = EstimatePlayerPingMs(snapshot.OwnerId, snapshot.ClientTime);
+        snapshot.Score = CalculatePlayerScore(combatStats, snapshot.Level);
+    }
+
+    private void CachePlayerCombatStats(CoopPlayerSnapshotRpc snapshot)
+    {
+        if (snapshot.OwnerId <= 0)
+            return;
+
+        playerCombatStats[snapshot.OwnerId] = new PlayerCombatStats
+        {
+            zombieKills = Mathf.Max(0, snapshot.ZombieKills),
+            damageDealt = Mathf.Max(0f, snapshot.DamageDealt),
+            deaths = Mathf.Max(0, snapshot.Deaths),
+            revives = Mathf.Max(0, snapshot.Revives)
+        };
+    }
+
+    private PlayerCombatStats GetPlayerCombatStats(int ownerId)
+    {
+        if (ownerId <= 0)
+            return default;
+
+        return playerCombatStats.TryGetValue(ownerId, out PlayerCombatStats stats) ? stats : default;
+    }
+
+    private void SetPlayerCombatStats(int ownerId, PlayerCombatStats stats)
+    {
+        if (ownerId <= 0)
+            return;
+
+        stats.zombieKills = Mathf.Max(0, stats.zombieKills);
+        stats.damageDealt = Mathf.Max(0f, stats.damageDealt);
+        stats.deaths = Mathf.Max(0, stats.deaths);
+        stats.revives = Mathf.Max(0, stats.revives);
+        playerCombatStats[ownerId] = stats;
+
+        if (lastPlayerSnapshots.TryGetValue(ownerId, out CoopPlayerSnapshotRpc snapshot))
+        {
+            snapshot.ZombieKills = stats.zombieKills;
+            snapshot.DamageDealt = stats.damageDealt;
+            snapshot.Deaths = stats.deaths;
+            snapshot.Revives = stats.revives;
+            snapshot.Score = CalculatePlayerScore(stats, snapshot.Level);
+            lastPlayerSnapshots[ownerId] = snapshot;
+        }
+    }
+
+    private void RecordZombieCombatResult(int ownerId, float damage, bool killed)
+    {
+        if (ownerId <= 0)
+            return;
+
+        PlayerCombatStats stats = GetPlayerCombatStats(ownerId);
+        stats.damageDealt += Mathf.Max(0f, damage);
+        if (killed)
+            stats.zombieKills++;
+
+        SetPlayerCombatStats(ownerId, stats);
+    }
+
+    private void RecordPlayerDeathScore(int ownerId)
+    {
+        if (ownerId <= 0 || session == null || !session.IsHost)
+            return;
+
+        PlayerCombatStats stats = GetPlayerCombatStats(ownerId);
+        stats.deaths++;
+        SetPlayerCombatStats(ownerId, stats);
+    }
+
+    private void RecordPlayerReviveScore(int ownerId)
+    {
+        if (ownerId <= 0 || session == null || !session.IsHost)
+            return;
+
+        PlayerCombatStats stats = GetPlayerCombatStats(ownerId);
+        stats.revives++;
+        SetPlayerCombatStats(ownerId, stats);
+    }
+
+    private int ResolveLocalPingMs(int ownerId)
+    {
+        if (lastPlayerSnapshots.TryGetValue(ownerId, out CoopPlayerSnapshotRpc snapshot) && snapshot.PingMs >= 0)
+            return snapshot.PingMs;
+
+        return session != null && session.IsHost ? 0 : -1;
+    }
+
+    private int EstimatePlayerPingMs(int ownerId, float clientTime)
+    {
+        if (ownerId <= 0 || clientTime <= 0f)
+            return 0;
+
+        if (!serverClientClockOffsets.TryGetValue(ownerId, out float offset))
+            return 0;
+
+        float correctedArrivalDelta = Mathf.Abs(Time.time - clientTime - offset);
+        return Mathf.Clamp(Mathf.RoundToInt(correctedArrivalDelta * 2000f), 0, 999);
+    }
+
+    private static int CalculatePlayerScore(PlayerCombatStats stats, int level)
+    {
+        float rawScore =
+            stats.zombieKills * 100f +
+            stats.damageDealt * 0.2f +
+            stats.revives * 200f +
+            Mathf.Max(1, level) * 25f -
+            stats.deaths * 100f;
+
+        return Mathf.Max(0, Mathf.RoundToInt(rawScore));
     }
 
     private bool ShouldIgnoreDeathStateNow()
@@ -1113,6 +1420,10 @@ public class CoopGameplaySync : MonoBehaviour
     {
         allyInfoBuffer.Clear();
 
+        Vector3 localPosition = localPlayerMotionTransform != null
+            ? localPlayerMotionTransform.position
+            : localCharacterStats != null ? localCharacterStats.transform.position : Vector3.zero;
+
         foreach (KeyValuePair<int, CoopPlayerSnapshotRpc> pair in lastPlayerSnapshots)
         {
             if (pair.Key <= 0 || pair.Key == localOwnerId)
@@ -1135,14 +1446,139 @@ public class CoopGameplaySync : MonoBehaviour
             if (deadPlayerIds.Contains(pair.Key) || (snapshot.Flags & PlayerFlagDead) != 0)
                 health = 0f;
 
+            float distance = localPlayerMotionTransform != null
+                ? Vector3.Distance(localPosition, snapshot.Position)
+                : -1f;
+            string status = ResolvePlayerStatus(snapshot, health, maxHealth);
+
             allyInfoBuffer.Add(new CoopAllyHud.AllyInfo(
                 pair.Key,
                 string.IsNullOrWhiteSpace(snapshot.PlayerName.ToString()) ? $"Player {pair.Key}" : snapshot.PlayerName.ToString(),
                 health,
-                maxHealth));
+                maxHealth,
+                status,
+                distance,
+                snapshot.Level));
         }
 
         CoopAllyHud.EnsureActive().SetAllies(allyInfoBuffer);
+    }
+
+    private void UpdateScoreboard(int localOwnerId)
+    {
+        bool showScoreboard = IsScoreboardKeyHeld();
+        CoopScoreboardUI scoreboard = CoopScoreboardUI.EnsureActive();
+        if (!showScoreboard)
+        {
+            scoreboard.Hide();
+            return;
+        }
+
+        scoreboardInfoBuffer.Clear();
+        AddScoreboardRow(localOwnerId, BuildLocalScoreboardSnapshot(localOwnerId), true);
+
+        foreach (KeyValuePair<int, CoopPlayerSnapshotRpc> pair in lastPlayerSnapshots)
+        {
+            if (pair.Key <= 0 || pair.Key == localOwnerId)
+                continue;
+
+            AddScoreboardRow(pair.Key, pair.Value, false);
+        }
+
+        scoreboard.SetRows(scoreboardInfoBuffer);
+    }
+
+    private void AddScoreboardRow(int ownerId, CoopPlayerSnapshotRpc snapshot, bool isLocal)
+    {
+        if (ownerId <= 0)
+            return;
+
+        float maxHealth = Mathf.Max(1f, snapshot.MaxHealth);
+        float health = Mathf.Clamp(snapshot.Health, 0f, maxHealth);
+        string status = ResolvePlayerStatus(snapshot, health, maxHealth);
+        string displayName = string.IsNullOrWhiteSpace(snapshot.PlayerName.ToString())
+            ? $"Player {ownerId}"
+            : snapshot.PlayerName.ToString();
+
+        scoreboardInfoBuffer.Add(new CoopScoreboardUI.PlayerRowInfo(
+            ownerId,
+            displayName,
+            isLocal,
+            status,
+            Mathf.CeilToInt(health),
+            Mathf.CeilToInt(maxHealth),
+            Mathf.RoundToInt(Mathf.Clamp(snapshot.Hunger, 0f, Mathf.Max(1f, snapshot.MaxHunger))),
+            Mathf.RoundToInt(Mathf.Max(1f, snapshot.MaxHunger)),
+            Mathf.RoundToInt(Mathf.Clamp(snapshot.Thirst, 0f, Mathf.Max(1f, snapshot.MaxThirst))),
+            Mathf.RoundToInt(Mathf.Max(1f, snapshot.MaxThirst)),
+            Mathf.Max(1, snapshot.Level),
+            Mathf.Max(0, snapshot.Experience),
+            Mathf.Max(0, snapshot.ExperienceToNextLevel),
+            Mathf.Max(0, snapshot.ZombieKills),
+            Mathf.Max(0f, snapshot.DamageDealt),
+            Mathf.Max(0, snapshot.Deaths),
+            Mathf.Max(0, snapshot.Revives),
+            snapshot.PingMs,
+            Mathf.Max(0, snapshot.Score)));
+    }
+
+    private CoopPlayerSnapshotRpc BuildLocalScoreboardSnapshot(int ownerId)
+    {
+        if (lastPlayerSnapshots.TryGetValue(ownerId, out CoopPlayerSnapshotRpc snapshot))
+            return snapshot;
+
+        PlayerCombatStats combatStats = GetPlayerCombatStats(ownerId);
+        int level = localCharacterStats != null ? Mathf.Max(1, localCharacterStats.playerLevel) : 1;
+        return new CoopPlayerSnapshotRpc
+        {
+            OwnerId = ownerId,
+            Health = localCharacterStats != null ? localCharacterStats.currentHealth : 100f,
+            MaxHealth = localCharacterStats != null ? Mathf.Max(1f, localCharacterStats.MaxHealth) : 100f,
+            Hunger = localCharacterStats != null ? localCharacterStats.currentHunger : 100f,
+            MaxHunger = localCharacterStats != null ? Mathf.Max(1f, localCharacterStats.MaxHunger) : 100f,
+            Thirst = localCharacterStats != null ? localCharacterStats.currentThirst : 100f,
+            MaxThirst = localCharacterStats != null ? Mathf.Max(1f, localCharacterStats.MaxThirst) : 100f,
+            Stamina = localCharacterStats != null ? localCharacterStats.currentStamina : 100f,
+            MaxStamina = localCharacterStats != null ? Mathf.Max(1f, localCharacterStats.MaxStamina) : 100f,
+            Level = level,
+            Experience = localCharacterStats != null ? Mathf.Max(0, localCharacterStats.currentExp) : 0,
+            ExperienceToNextLevel = localCharacterStats != null ? Mathf.Max(0, localCharacterStats.expToNextLevel) : 0,
+            ZombieKills = combatStats.zombieKills,
+            DamageDealt = combatStats.damageDealt,
+            Deaths = combatStats.deaths,
+            Revives = combatStats.revives,
+            PingMs = ResolveLocalPingMs(ownerId),
+            Score = CalculatePlayerScore(combatStats, level),
+            Flags = localCharacterStats != null && localCharacterStats.IsDead ? PlayerFlagDead : (byte)0,
+            PlayerName = localCharacterStats != null && !string.IsNullOrWhiteSpace(localCharacterStats.playerName)
+                ? localCharacterStats.playerName
+                : $"Player {ownerId}"
+        };
+    }
+
+    private static bool IsScoreboardKeyHeld()
+    {
+#if ENABLE_INPUT_SYSTEM
+        if (Keyboard.current != null)
+            return Keyboard.current.tabKey.isPressed;
+#endif
+        return Input.GetKey(KeyCode.Tab);
+    }
+
+    private static string ResolvePlayerStatus(CoopPlayerSnapshotRpc snapshot, float health, float maxHealth)
+    {
+        bool dead = (snapshot.Flags & PlayerFlagDead) != 0 || health <= 0f;
+        if (dead)
+            return CoopReviveMarker.IsReviving(snapshot.OwnerId) ? "Воскрешается" : "Мертв";
+
+        float percent = maxHealth > 0f ? health / maxHealth : 0f;
+        if (percent <= 0.18f)
+            return "При смерти";
+
+        if (percent <= 0.35f)
+            return "Низкое HP";
+
+        return "Жив";
     }
 
     private void UpdateCachedPlayerHealth(int ownerId, float health, bool dead)
@@ -1320,6 +1756,9 @@ public class CoopGameplaySync : MonoBehaviour
         deadPlayerIds.Add(ownerId);
         UpdateCachedPlayerHealth(ownerId, 0f, true);
 
+        if (!wasKnownDead)
+            RecordPlayerDeathScore(ownerId);
+
         if (reviveMarkers.ContainsKey(ownerId))
             RemoveDeadBodyRagdoll(ownerId);
         else
@@ -1451,7 +1890,7 @@ public class CoopGameplaySync : MonoBehaviour
             ragdoll.EnableRagdoll();
     }
 
-    private void CompletePlayerRevive(int deadOwnerId, Vector3 requestedPosition, Quaternion requestedRotation)
+    private void CompletePlayerRevive(int deadOwnerId, Vector3 requestedPosition, Quaternion requestedRotation, int reviverOwnerId = 0)
     {
         if (deadOwnerId <= 0 || !deadPlayerIds.Contains(deadOwnerId))
             return;
@@ -1469,6 +1908,9 @@ public class CoopGameplaySync : MonoBehaviour
             Rotation = reviveRotation,
             Health = health
         };
+
+        if (reviverOwnerId > 0 && reviverOwnerId != deadOwnerId)
+            RecordPlayerReviveScore(reviverOwnerId);
 
         BroadcastServerRpc(revive);
         ApplyPlayerRevive(revive);
@@ -1789,6 +2231,7 @@ public class CoopGameplaySync : MonoBehaviour
         gameOverResultApplied = false;
         gameOverVotes.Clear();
         CoopRevivePromptUI.Hide();
+        CoopScoreboardUI.EnsureActive().Hide();
         DeathChoiceMenu.Hide();
         clientZombieStateSequences.Clear();
         clientPredictedZombieHealth.Clear();
@@ -1798,10 +2241,15 @@ public class CoopGameplaySync : MonoBehaviour
         hostZombieHitboxCache.Clear();
         lastZombieSnapshotStates.Clear();
         serverPlayerInventoryItems.Clear();
+        serverInventorySnapshotSequences.Clear();
+        serverKnownPlayerInventories.Clear();
         pendingWorldItemPickups.Clear();
         remoteProjectiles.Clear();
         processedServerShotKeys.Clear();
         processedServerShotKeyOrder.Clear();
+        playerCombatStats.Clear();
+        hasSentLocalInventory = false;
+        nextInventoryResyncTime = 0f;
 
         if (!CoopSessionState.IsCoopSession || scene.name == MainMenuSceneName)
         {
@@ -1980,7 +2428,7 @@ public class CoopGameplaySync : MonoBehaviour
             if (zombie != null && !zombie.IsDead && hostZombieIds.ContainsKey(zombie))
             {
                 damageable ??= zombie;
-                ApplyServerShotDamage(damageable, shot.Damage, hit.point, hit.normal);
+                ApplyServerShotDamage(shot.OwnerId, damageable, shot.Damage, hit.point, hit.normal);
                 return;
             }
 
@@ -1992,14 +2440,16 @@ public class CoopGameplaySync : MonoBehaviour
         if (!TryRaycastZombieRewind(origin, direction.normalized, shot.Range, blockingDistance, targetTime, out ZombieRewindHit rewindHit))
             return;
 
-        ApplyServerRewindShotDamage(rewindHit, shot.Damage);
+        ApplyServerRewindShotDamage(shot.OwnerId, rewindHit, shot.Damage);
     }
 
-    private void ApplyServerShotDamage(BaseDamagable damageable, float damage, Vector3 hitPoint, Vector3 hitNormal)
+    private void ApplyServerShotDamage(int shooterOwnerId, BaseDamagable damageable, float damage, Vector3 hitPoint, Vector3 hitNormal)
     {
         if (damageable == null || damage <= 0f)
             return;
 
+        int previousAttribution = serverZombieDamageAttributionOwnerId;
+        serverZombieDamageAttributionOwnerId = shooterOwnerId;
         BeginNetworkDamageScope();
         try
         {
@@ -2008,10 +2458,11 @@ public class CoopGameplaySync : MonoBehaviour
         finally
         {
             EndNetworkDamageScope();
+            serverZombieDamageAttributionOwnerId = previousAttribution;
         }
     }
 
-    private void ApplyServerRewindShotDamage(ZombieRewindHit hit, float baseDamage)
+    private void ApplyServerRewindShotDamage(int shooterOwnerId, ZombieRewindHit hit, float baseDamage)
     {
         if (hit.owner == null || hit.owner.IsDead || baseDamage <= 0f)
             return;
@@ -2020,6 +2471,8 @@ public class CoopGameplaySync : MonoBehaviour
         if (damage <= 0f)
             return;
 
+        int previousAttribution = serverZombieDamageAttributionOwnerId;
+        serverZombieDamageAttributionOwnerId = shooterOwnerId;
         BeginNetworkDamageScope();
         try
         {
@@ -2028,6 +2481,7 @@ public class CoopGameplaySync : MonoBehaviour
         finally
         {
             EndNetworkDamageScope();
+            serverZombieDamageAttributionOwnerId = previousAttribution;
         }
     }
 
@@ -2617,6 +3071,182 @@ public class CoopGameplaySync : MonoBehaviour
         SendLootContainerState(container, true);
     }
 
+    private void SendLocalInventorySnapshot(int ownerId, bool force)
+    {
+        if (ownerId <= 0 || localPlayerInventory == null || session == null)
+            return;
+
+        int hash = CalculateInventoryHash(localPlayerInventory);
+        bool periodicDue = Time.time >= nextInventoryResyncTime;
+        if (!force && hasSentLocalInventory && hash == lastLocalInventoryHash && !periodicDue)
+            return;
+
+        hasSentLocalInventory = true;
+        lastLocalInventoryHash = hash;
+        nextInventoryResyncTime = Time.time + InventoryResyncInterval;
+
+        uint sequence = ++localInventorySequence;
+        if (session.IsHost)
+        {
+            CopyInventoryToServer(ownerId, localPlayerInventory, sequence);
+            return;
+        }
+
+        SendClientRpc(new CoopPlayerInventoryClearRpc
+        {
+            OwnerId = ownerId,
+            Sequence = sequence
+        });
+
+        IReadOnlyList<InventorySlot> slots = localPlayerInventory.Slots;
+        for (int i = 0; i < slots.Count; i++)
+        {
+            InventorySlot slot = slots[i];
+            if (slot == null || slot.item == null || slot.amount <= 0)
+                continue;
+
+            SendClientRpc(new CoopPlayerInventorySlotRpc
+            {
+                OwnerId = ownerId,
+                ItemId = GetItemNetworkId(slot.item),
+                Amount = slot.amount,
+                Sequence = sequence
+            });
+        }
+    }
+
+    private void CopyInventoryToServer(int ownerId, PlayerInventory inventory, uint sequence)
+    {
+        if (ownerId <= 0 || inventory == null)
+            return;
+
+        Dictionary<string, int> serverInventory = GetServerInventory(ownerId);
+        serverInventory.Clear();
+
+        IReadOnlyList<InventorySlot> slots = inventory.Slots;
+        for (int i = 0; i < slots.Count; i++)
+        {
+            InventorySlot slot = slots[i];
+            if (slot == null || slot.item == null || slot.amount <= 0)
+                continue;
+
+            string itemId = GetItemNetworkId(slot.item);
+            if (string.IsNullOrWhiteSpace(itemId))
+                continue;
+
+            serverInventory.TryGetValue(itemId, out int current);
+            serverInventory[itemId] = current + slot.amount;
+        }
+
+        serverInventorySnapshotSequences[ownerId] = sequence;
+        serverKnownPlayerInventories.Add(ownerId);
+    }
+
+    private static int CalculateInventoryHash(PlayerInventory inventory)
+    {
+        if (inventory == null)
+            return 0;
+
+        unchecked
+        {
+            int hash = 17;
+            IReadOnlyList<InventorySlot> slots = inventory.Slots;
+            for (int i = 0; i < slots.Count; i++)
+            {
+                InventorySlot slot = slots[i];
+                if (slot == null || slot.item == null || slot.amount <= 0)
+                    continue;
+
+                hash = hash * 31 + GetItemNetworkId(slot.item).GetHashCode();
+                hash = hash * 31 + slot.amount;
+            }
+
+            return hash;
+        }
+    }
+
+    private void ReceivePlayerInventorySnapshotsOnServer()
+    {
+        World world = session != null ? session.ServerWorld : null;
+        if (world == null || !world.IsCreated)
+            return;
+
+        ReceivePlayerInventoryClears(world);
+        ReceivePlayerInventorySlots(world);
+    }
+
+    private void ReceivePlayerInventoryClears(World world)
+    {
+        EntityManager entityManager = world.EntityManager;
+        using EntityQuery query = entityManager.CreateEntityQuery(
+            ComponentType.ReadOnly<CoopPlayerInventoryClearRpc>(),
+            ComponentType.ReadOnly<ReceiveRpcCommandRequest>());
+
+        using NativeArray<Entity> entities = query.ToEntityArray(Allocator.Temp);
+        using NativeArray<CoopPlayerInventoryClearRpc> clears = query.ToComponentDataArray<CoopPlayerInventoryClearRpc>(Allocator.Temp);
+        using NativeArray<ReceiveRpcCommandRequest> requests = query.ToComponentDataArray<ReceiveRpcCommandRequest>(Allocator.Temp);
+
+        for (int i = 0; i < entities.Length; i++)
+        {
+            CoopPlayerInventoryClearRpc clear = clears[i];
+            int ownerId = GetConnectionNetworkId(world, requests[i].SourceConnection);
+            if (ownerId <= 0)
+                ownerId = clear.OwnerId;
+
+            if (ownerId > 0 && IsFreshInventorySequence(ownerId, clear.Sequence))
+            {
+                Dictionary<string, int> inventory = GetServerInventory(ownerId);
+                inventory.Clear();
+                serverInventorySnapshotSequences[ownerId] = clear.Sequence;
+                serverKnownPlayerInventories.Add(ownerId);
+            }
+
+            entityManager.DestroyEntity(entities[i]);
+        }
+    }
+
+    private void ReceivePlayerInventorySlots(World world)
+    {
+        EntityManager entityManager = world.EntityManager;
+        using EntityQuery query = entityManager.CreateEntityQuery(
+            ComponentType.ReadOnly<CoopPlayerInventorySlotRpc>(),
+            ComponentType.ReadOnly<ReceiveRpcCommandRequest>());
+
+        using NativeArray<Entity> entities = query.ToEntityArray(Allocator.Temp);
+        using NativeArray<CoopPlayerInventorySlotRpc> slots = query.ToComponentDataArray<CoopPlayerInventorySlotRpc>(Allocator.Temp);
+        using NativeArray<ReceiveRpcCommandRequest> requests = query.ToComponentDataArray<ReceiveRpcCommandRequest>(Allocator.Temp);
+
+        for (int i = 0; i < entities.Length; i++)
+        {
+            CoopPlayerInventorySlotRpc slot = slots[i];
+            int ownerId = GetConnectionNetworkId(world, requests[i].SourceConnection);
+            if (ownerId <= 0)
+                ownerId = slot.OwnerId;
+
+            if (ownerId > 0 &&
+                slot.Amount > 0 &&
+                serverInventorySnapshotSequences.TryGetValue(ownerId, out uint sequence) &&
+                sequence == slot.Sequence)
+            {
+                string itemId = slot.ItemId.ToString();
+                if (!string.IsNullOrWhiteSpace(itemId) && ResolveItem(itemId) != null)
+                {
+                    Dictionary<string, int> inventory = GetServerInventory(ownerId);
+                    inventory.TryGetValue(itemId, out int current);
+                    inventory[itemId] = current + slot.Amount;
+                }
+            }
+
+            entityManager.DestroyEntity(entities[i]);
+        }
+    }
+
+    private bool IsFreshInventorySequence(int ownerId, uint sequence)
+    {
+        return !serverInventorySnapshotSequences.TryGetValue(ownerId, out uint knownSequence) ||
+            sequence >= knownSequence;
+    }
+
     private void SendLootContainerState(LootContainer container, bool broadcastFromServer)
     {
         if (container == null)
@@ -2783,6 +3413,9 @@ public class CoopGameplaySync : MonoBehaviour
 
         if (fromContainer)
         {
+            if (localInventory != null && !localInventory.CanAddItem(item, amount))
+                return false;
+
             if (!container.RemoveItem(item, amount))
                 return false;
 
@@ -2792,7 +3425,7 @@ public class CoopGameplaySync : MonoBehaviour
         }
         else
         {
-            if (!RemoveServerInventoryItem(ownerId, item, amount, true))
+            if (!RemoveServerInventoryItem(ownerId, item, amount, !HasKnownServerInventory(ownerId)))
                 return false;
 
             if (updateLocalInventory && localInventory != null && !localInventory.RemoveItem(item, amount))
@@ -2893,6 +3526,9 @@ public class CoopGameplaySync : MonoBehaviour
         if (string.IsNullOrWhiteSpace(containerId))
             return;
 
+        if (receivedLootSequences.TryGetValue(containerId, out uint knownSequence) && clear.Sequence < knownSequence)
+            return;
+
         receivedLootSequences[containerId] = clear.Sequence;
         LootContainer container = FindLootContainerById(containerId);
         if (container == null)
@@ -2907,6 +3543,9 @@ public class CoopGameplaySync : MonoBehaviour
     {
         string containerId = slot.ContainerId.ToString();
         if (string.IsNullOrWhiteSpace(containerId) || slot.Amount <= 0)
+            return;
+
+        if (!receivedLootSequences.TryGetValue(containerId, out uint knownSequence) || slot.Sequence != knownSequence)
             return;
 
         LootContainer container = FindLootContainerById(containerId);
@@ -3014,7 +3653,7 @@ public class CoopGameplaySync : MonoBehaviour
                 spawn.OwnerId = ownerId;
 
             ItemSO item = ResolveItem(spawn.ItemId.ToString());
-            if (item != null && spawn.Amount > 0 && RemoveServerInventoryItem(spawn.OwnerId, item, spawn.Amount, true))
+            if (item != null && spawn.Amount > 0 && RemoveServerInventoryItem(spawn.OwnerId, item, spawn.Amount, !HasKnownServerInventory(spawn.OwnerId)))
             {
                 spawn.NetworkItemId = CreateWorldItemId();
                 SpawnNetworkWorldItem(spawn, false);
@@ -3262,6 +3901,81 @@ public class CoopGameplaySync : MonoBehaviour
         networkWorldItemScopeDepth = Mathf.Max(0, networkWorldItemScopeDepth - 1);
     }
 
+    private Dictionary<int, Dictionary<string, int>> CloneAuthoritativeInventoriesForSave()
+    {
+        if (session != null && session.IsHost && localPlayerInventory != null)
+        {
+            int localOwnerId = session.LocalNetworkId;
+            if (localOwnerId > 0)
+                CopyInventoryToServer(localOwnerId, localPlayerInventory, ++localInventorySequence);
+        }
+
+        Dictionary<int, Dictionary<string, int>> copy = new();
+        foreach (KeyValuePair<int, Dictionary<string, int>> playerInventory in serverPlayerInventoryItems)
+        {
+            Dictionary<string, int> stacks = new();
+            foreach (KeyValuePair<string, int> stack in playerInventory.Value)
+            {
+                if (!string.IsNullOrWhiteSpace(stack.Key) && stack.Value > 0)
+                    stacks[stack.Key] = stack.Value;
+            }
+
+            copy[playerInventory.Key] = stacks;
+        }
+
+        return copy;
+    }
+
+    private void ReplaceAuthoritativeInventoriesFromSave(Dictionary<int, Dictionary<string, int>> inventories)
+    {
+        serverPlayerInventoryItems.Clear();
+        serverInventorySnapshotSequences.Clear();
+        serverKnownPlayerInventories.Clear();
+
+        if (inventories == null)
+            return;
+
+        foreach (KeyValuePair<int, Dictionary<string, int>> playerInventory in inventories)
+        {
+            int ownerId = playerInventory.Key;
+            if (ownerId <= 0)
+                continue;
+
+            Dictionary<string, int> stacks = GetServerInventory(ownerId);
+            stacks.Clear();
+
+            foreach (KeyValuePair<string, int> stack in playerInventory.Value)
+            {
+                if (!string.IsNullOrWhiteSpace(stack.Key) && stack.Value > 0)
+                    stacks[stack.Key] = stack.Value;
+            }
+
+            serverInventorySnapshotSequences[ownerId] = ++localInventorySequence;
+            serverKnownPlayerInventories.Add(ownerId);
+
+            if (session != null && ownerId == session.LocalNetworkId && localPlayerInventory != null)
+                ApplyInventoryStacksToLocalInventory(localPlayerInventory, stacks);
+        }
+    }
+
+    private void ApplyInventoryStacksToLocalInventory(PlayerInventory inventory, Dictionary<string, int> stacks)
+    {
+        if (inventory == null)
+            return;
+
+        List<InventorySlot> slots = new();
+        foreach (KeyValuePair<string, int> stack in stacks)
+        {
+            ItemSO item = ResolveItem(stack.Key);
+            if (item != null && stack.Value > 0)
+                slots.Add(new InventorySlot(item, stack.Value));
+        }
+
+        BeginNetworkLootScope();
+        inventory.ReplaceContents(slots);
+        EndNetworkLootScope();
+    }
+
     private void AddServerInventoryItem(int ownerId, ItemSO item, int amount)
     {
         if (ownerId <= 0 || item == null || amount <= 0)
@@ -3304,6 +4018,11 @@ public class CoopGameplaySync : MonoBehaviour
             inventory[itemId] = current;
 
         return true;
+    }
+
+    private bool HasKnownServerInventory(int ownerId)
+    {
+        return ownerId > 0 && serverKnownPlayerInventories.Contains(ownerId);
     }
 
     private Dictionary<string, int> GetServerInventory(int ownerId)
@@ -3917,9 +4636,18 @@ public class CoopGameplaySync : MonoBehaviour
                 hostZombiesById.TryGetValue(request.TargetId, out ZombieHealth health) &&
                 health != null)
             {
+                int previousAttribution = serverZombieDamageAttributionOwnerId;
+                serverZombieDamageAttributionOwnerId = request.ShooterOwnerId;
                 BeginNetworkDamageScope();
-                health.ApplyNetworkDamage(request.Damage, request.HitPoint, request.HitNormal);
-                EndNetworkDamageScope();
+                try
+                {
+                    health.ApplyNetworkDamage(request.Damage, request.HitPoint, request.HitNormal);
+                }
+                finally
+                {
+                    EndNetworkDamageScope();
+                    serverZombieDamageAttributionOwnerId = previousAttribution;
+                }
             }
 
             entityManager.DestroyEntity(entities[i]);
@@ -3930,6 +4658,12 @@ public class CoopGameplaySync : MonoBehaviour
     {
         if (health == null || !hostZombieIds.TryGetValue(health, out int zombieId))
             return;
+
+        int shooterOwnerId = serverZombieDamageAttributionOwnerId > 0
+            ? serverZombieDamageAttributionOwnerId
+            : session != null && session.IsHost ? session.LocalNetworkId : 0;
+        if (shooterOwnerId > 0)
+            RecordZombieCombatResult(shooterOwnerId, damage, health.CurrentHealth <= 0f);
 
         BroadcastServerRpc(new CoopZombieDamageEventRpc
         {
@@ -4140,7 +4874,7 @@ public class CoopGameplaySync : MonoBehaviour
                 request.ReviverOwnerId != request.DeadOwnerId &&
                 !IsPlayerDead(request.ReviverOwnerId, localOwnerId))
             {
-                CompletePlayerRevive(request.DeadOwnerId, request.Position, request.Rotation);
+                CompletePlayerRevive(request.DeadOwnerId, request.Position, request.Rotation, request.ReviverOwnerId);
             }
 
             entityManager.DestroyEntity(entities[i]);
@@ -4296,11 +5030,19 @@ public class CoopGameplaySync : MonoBehaviour
         foreach (Weapon weapon in subscribedWeapons)
         {
             if (weapon != null)
+            {
                 weapon.ShotFired -= HandleLocalWeaponShot;
+                weapon.AmmoChanged -= HandleLocalWeaponAmmoChanged;
+                weapon.ReloadStarted -= HandleLocalWeaponReloadChanged;
+                weapon.ReloadCompleted -= HandleLocalWeaponReloadChanged;
+            }
         }
 
         if (localWeaponController != null)
             localWeaponController.CurrentWeaponChanged -= HandleCurrentWeaponChanged;
+
+        if (localPlayerInventory != null)
+            localPlayerInventory.InventoryChanged -= HandleLocalInventoryChanged;
 
         SceneManager.sceneLoaded -= HandleSceneLoaded;
 
@@ -4318,13 +5060,19 @@ public class CoopAllyHud : MonoBehaviour
         public readonly string displayName;
         public readonly float health;
         public readonly float maxHealth;
+        public readonly string status;
+        public readonly float distance;
+        public readonly int level;
 
-        public AllyInfo(int ownerId, string displayName, float health, float maxHealth)
+        public AllyInfo(int ownerId, string displayName, float health, float maxHealth, string status, float distance, int level)
         {
             this.ownerId = ownerId;
             this.displayName = displayName;
             this.health = health;
             this.maxHealth = Mathf.Max(1f, maxHealth);
+            this.status = status;
+            this.distance = distance;
+            this.level = Mathf.Max(1, level);
         }
     }
 
@@ -4333,6 +5081,8 @@ public class CoopAllyHud : MonoBehaviour
         public GameObject root;
         public Text nameText;
         public Text healthText;
+        public Text statusText;
+        public Text distanceText;
         public Image healthFill;
         public RectTransform healthFillRect;
     }
@@ -4387,10 +5137,17 @@ public class CoopAllyHud : MonoBehaviour
 
             AllyInfo ally = allies[i];
             float percent = Mathf.Clamp01(ally.health / Mathf.Max(1f, ally.maxHealth));
-            row.nameText.text = string.IsNullOrWhiteSpace(ally.displayName) ? $"Player {ally.ownerId}" : ally.displayName;
+            string displayName = string.IsNullOrWhiteSpace(ally.displayName) ? $"P{ally.ownerId}" : ally.displayName;
+            row.nameText.text = $"{Shorten(displayName, 12)}  L{ally.level}";
 
             if (row.healthText != null)
-                row.healthText.text = $"{Mathf.CeilToInt(Mathf.Max(0f, ally.health))} / {Mathf.CeilToInt(ally.maxHealth)}";
+                row.healthText.text = Mathf.CeilToInt(Mathf.Max(0f, ally.health)).ToString();
+
+            if (row.statusText != null)
+                row.statusText.text = ShortStatus(ally.status);
+
+            if (row.distanceText != null)
+                row.distanceText.text = ally.distance >= 0f ? $"{Mathf.RoundToInt(ally.distance)}m" : string.Empty;
 
             if (row.healthFillRect != null)
             {
@@ -4434,11 +5191,11 @@ public class CoopAllyHud : MonoBehaviour
         panelRoot.anchorMin = new Vector2(0f, 1f);
         panelRoot.anchorMax = new Vector2(0f, 1f);
         panelRoot.pivot = new Vector2(0f, 1f);
-        panelRoot.anchoredPosition = new Vector2(18f, -18f);
-        panelRoot.sizeDelta = new Vector2(260f, 0f);
+        panelRoot.anchoredPosition = new Vector2(12f, -12f);
+        panelRoot.sizeDelta = new Vector2(214f, 0f);
 
         VerticalLayoutGroup layout = panelObject.GetComponent<VerticalLayoutGroup>();
-        layout.spacing = 8f;
+        layout.spacing = 4f;
         layout.childAlignment = TextAnchor.UpperLeft;
         layout.childControlWidth = true;
         layout.childControlHeight = false;
@@ -4462,36 +5219,50 @@ public class CoopAllyHud : MonoBehaviour
         rowObject.transform.SetParent(panelRoot, false);
 
         RectTransform rowRect = rowObject.GetComponent<RectTransform>();
-        rowRect.sizeDelta = new Vector2(260f, 44f);
+        rowRect.sizeDelta = new Vector2(214f, 30f);
 
         LayoutElement layoutElement = rowObject.GetComponent<LayoutElement>();
-        layoutElement.preferredHeight = 44f;
-        layoutElement.minHeight = 44f;
+        layoutElement.preferredHeight = 30f;
+        layoutElement.minHeight = 30f;
 
         Image background = rowObject.GetComponent<Image>();
         background.color = new Color(0.03f, 0.04f, 0.045f, 0.74f);
         background.raycastTarget = false;
 
-        Text nameText = CreateText("Name", rowObject.transform, 15, TextAnchor.MiddleLeft);
+        Text nameText = CreateText("Name", rowObject.transform, 12, TextAnchor.MiddleLeft);
         RectTransform nameRect = nameText.rectTransform;
         nameRect.anchorMin = new Vector2(0f, 0.45f);
-        nameRect.anchorMax = Vector2.one;
-        nameRect.offsetMin = new Vector2(10f, 0f);
-        nameRect.offsetMax = new Vector2(-72f, -2f);
+        nameRect.anchorMax = new Vector2(0.48f, 1f);
+        nameRect.offsetMin = new Vector2(7f, -1f);
+        nameRect.offsetMax = new Vector2(0f, -1f);
 
-        Text healthText = CreateText("Health Text", rowObject.transform, 13, TextAnchor.MiddleRight);
+        Text statusText = CreateText("Status", rowObject.transform, 11, TextAnchor.MiddleCenter);
+        RectTransform statusRect = statusText.rectTransform;
+        statusRect.anchorMin = new Vector2(0.48f, 0.45f);
+        statusRect.anchorMax = new Vector2(0.72f, 1f);
+        statusRect.offsetMin = Vector2.zero;
+        statusRect.offsetMax = Vector2.zero;
+
+        Text distanceText = CreateText("Distance", rowObject.transform, 11, TextAnchor.MiddleRight);
+        RectTransform distanceRect = distanceText.rectTransform;
+        distanceRect.anchorMin = new Vector2(0.72f, 0.45f);
+        distanceRect.anchorMax = new Vector2(0.88f, 1f);
+        distanceRect.offsetMin = Vector2.zero;
+        distanceRect.offsetMax = Vector2.zero;
+
+        Text healthText = CreateText("Health Text", rowObject.transform, 12, TextAnchor.MiddleRight);
         RectTransform healthTextRect = healthText.rectTransform;
-        healthTextRect.anchorMin = new Vector2(1f, 0.45f);
+        healthTextRect.anchorMin = new Vector2(0.88f, 0.45f);
         healthTextRect.anchorMax = Vector2.one;
-        healthTextRect.offsetMin = new Vector2(-70f, 0f);
-        healthTextRect.offsetMax = new Vector2(-10f, -2f);
+        healthTextRect.offsetMin = Vector2.zero;
+        healthTextRect.offsetMax = new Vector2(-7f, -1f);
 
         Image healthBack = CreateImage("Health Back", rowObject.transform, new Color(0.12f, 0.12f, 0.12f, 0.95f));
         RectTransform backRect = healthBack.rectTransform;
         backRect.anchorMin = new Vector2(0f, 0f);
         backRect.anchorMax = new Vector2(1f, 0f);
-        backRect.offsetMin = new Vector2(10f, 9f);
-        backRect.offsetMax = new Vector2(-10f, 19f);
+        backRect.offsetMin = new Vector2(7f, 6f);
+        backRect.offsetMax = new Vector2(-7f, 12f);
 
         Image healthFill = CreateImage("Health Fill", healthBack.transform, new Color(0.22f, 0.86f, 0.38f, 1f));
         healthFill.type = Image.Type.Simple;
@@ -4507,9 +5278,31 @@ public class CoopAllyHud : MonoBehaviour
             root = rowObject,
             nameText = nameText,
             healthText = healthText,
+            statusText = statusText,
+            distanceText = distanceText,
             healthFill = healthFill,
             healthFillRect = fillRect
         };
+    }
+
+    private static string ShortStatus(string status)
+    {
+        return status switch
+        {
+            "Мертв" => "DEAD",
+            "Воскрешается" => "REV",
+            "При смерти" => "CRIT",
+            "Низкое HP" => "LOW",
+            _ => "OK"
+        };
+    }
+
+    private static string Shorten(string value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length <= maxLength)
+            return value;
+
+        return value.Substring(0, Mathf.Max(1, maxLength - 1)) + ".";
     }
 
     private Text CreateText(string objectName, Transform parent, int size, TextAnchor alignment)
@@ -4539,8 +5332,441 @@ public class CoopAllyHud : MonoBehaviour
 }
 
 [DisallowMultipleComponent]
+public class CoopScoreboardUI : MonoBehaviour
+{
+    public readonly struct PlayerRowInfo
+    {
+        public readonly int ownerId;
+        public readonly string displayName;
+        public readonly bool isLocal;
+        public readonly string status;
+        public readonly int health;
+        public readonly int maxHealth;
+        public readonly int hunger;
+        public readonly int maxHunger;
+        public readonly int thirst;
+        public readonly int maxThirst;
+        public readonly int level;
+        public readonly int experience;
+        public readonly int experienceToNextLevel;
+        public readonly int zombieKills;
+        public readonly float damageDealt;
+        public readonly int deaths;
+        public readonly int revives;
+        public readonly int pingMs;
+        public readonly int score;
+
+        public PlayerRowInfo(
+            int ownerId,
+            string displayName,
+            bool isLocal,
+            string status,
+            int health,
+            int maxHealth,
+            int hunger,
+            int maxHunger,
+            int thirst,
+            int maxThirst,
+            int level,
+            int experience,
+            int experienceToNextLevel,
+            int zombieKills,
+            float damageDealt,
+            int deaths,
+            int revives,
+            int pingMs,
+            int score)
+        {
+            this.ownerId = ownerId;
+            this.displayName = displayName;
+            this.isLocal = isLocal;
+            this.status = status;
+            this.health = health;
+            this.maxHealth = Mathf.Max(1, maxHealth);
+            this.hunger = hunger;
+            this.maxHunger = Mathf.Max(1, maxHunger);
+            this.thirst = thirst;
+            this.maxThirst = Mathf.Max(1, maxThirst);
+            this.level = Mathf.Max(1, level);
+            this.experience = Mathf.Max(0, experience);
+            this.experienceToNextLevel = Mathf.Max(0, experienceToNextLevel);
+            this.zombieKills = Mathf.Max(0, zombieKills);
+            this.damageDealt = Mathf.Max(0f, damageDealt);
+            this.deaths = Mathf.Max(0, deaths);
+            this.revives = Mathf.Max(0, revives);
+            this.pingMs = pingMs;
+            this.score = Mathf.Max(0, score);
+        }
+    }
+
+    private sealed class ScoreRow
+    {
+        public GameObject root;
+        public Image background;
+        public Text[] columns;
+    }
+
+    private static readonly string[] Headers =
+    {
+        "Игрок",
+        "Статус",
+        "HP",
+        "Еда",
+        "Вода",
+        "Ур/XP",
+        "Киллы",
+        "Урон",
+        "Смерт.",
+        "Рез.",
+        "Пинг",
+        "Очки"
+    };
+
+    private static readonly float[] ColumnWidths =
+    {
+        220f,
+        150f,
+        100f,
+        96f,
+        96f,
+        132f,
+        78f,
+        100f,
+        88f,
+        76f,
+        92f,
+        96f
+    };
+
+    private static readonly float[] ColumnFlexWeights =
+    {
+        2.2f,
+        1.45f,
+        1f,
+        0.95f,
+        0.95f,
+        1.25f,
+        0.75f,
+        0.95f,
+        0.8f,
+        0.75f,
+        0.85f,
+        0.9f
+    };
+
+    private const float ColumnSpacing = 8f;
+    private const float ColumnSeparatorWidth = 1f;
+    private const float HeaderHeight = 34f;
+    private const float RowHeight = 38f;
+    private const int HeaderFontSize = 13;
+    private const int RowFontSize = 14;
+    private static readonly RectOffset PanelPadding = new(48, 48, 48, 48);
+
+    private static CoopScoreboardUI instance;
+
+    private readonly List<ScoreRow> rows = new();
+    private RectTransform panelRoot;
+    private RectTransform rowsRoot;
+    private Font font;
+
+    public static CoopScoreboardUI EnsureActive()
+    {
+        if (instance != null)
+            return instance;
+
+        GameObject uiObject = new GameObject("Coop Scoreboard UI");
+        instance = uiObject.AddComponent<CoopScoreboardUI>();
+        DontDestroyOnLoad(uiObject);
+        return instance;
+    }
+
+    public static void HideExisting()
+    {
+        if (instance != null)
+            instance.Hide();
+    }
+
+    private void Awake()
+    {
+        if (instance != null && instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        instance = this;
+        DontDestroyOnLoad(gameObject);
+        BuildUI();
+    }
+
+    public void Hide()
+    {
+        if (panelRoot != null)
+            panelRoot.gameObject.SetActive(false);
+    }
+
+    public void SetRows(IReadOnlyList<PlayerRowInfo> players)
+    {
+        if (panelRoot == null)
+            BuildUI();
+
+        int count = players != null ? players.Count : 0;
+        panelRoot.gameObject.SetActive(count > 0);
+        EnsureRowCount(count);
+
+        for (int i = 0; i < rows.Count; i++)
+        {
+            ScoreRow row = rows[i];
+            bool visible = i < count;
+            row.root.SetActive(visible);
+            if (!visible)
+                continue;
+
+            ApplyRow(row, players[i], i);
+        }
+    }
+
+    private void BuildUI()
+    {
+        if (panelRoot != null)
+            return;
+
+        font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+
+        GameObject canvasObject = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler));
+        canvasObject.transform.SetParent(transform, false);
+
+        Canvas canvas = canvasObject.GetComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 72;
+
+        CanvasScaler scaler = canvasObject.GetComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        scaler.matchWidthOrHeight = 0.5f;
+
+        GameObject panelObject = new GameObject("Scoreboard", typeof(RectTransform), typeof(Image), typeof(VerticalLayoutGroup));
+        panelObject.transform.SetParent(canvasObject.transform, false);
+
+        panelRoot = panelObject.GetComponent<RectTransform>();
+        panelRoot.anchorMin = Vector2.zero;
+        panelRoot.anchorMax = Vector2.one;
+        panelRoot.pivot = new Vector2(0.5f, 0.5f);
+        panelRoot.anchoredPosition = Vector2.zero;
+        panelRoot.offsetMin = Vector2.zero;
+        panelRoot.offsetMax = Vector2.zero;
+
+        Image panelImage = panelObject.GetComponent<Image>();
+        panelImage.color = new Color(0.025f, 0.03f, 0.035f, 0.92f);
+        panelImage.raycastTarget = false;
+
+        VerticalLayoutGroup panelLayout = panelObject.GetComponent<VerticalLayoutGroup>();
+        panelLayout.padding = PanelPadding;
+        panelLayout.spacing = 8f;
+        panelLayout.childControlWidth = true;
+        panelLayout.childControlHeight = false;
+        panelLayout.childForceExpandWidth = true;
+        panelLayout.childForceExpandHeight = false;
+
+        CreateHeader(panelObject.transform);
+
+        GameObject rowsObject = new GameObject("Rows", typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
+        rowsObject.transform.SetParent(panelObject.transform, false);
+        rowsRoot = rowsObject.GetComponent<RectTransform>();
+
+        VerticalLayoutGroup rowsLayout = rowsObject.GetComponent<VerticalLayoutGroup>();
+        rowsLayout.spacing = 4f;
+        rowsLayout.childControlWidth = true;
+        rowsLayout.childControlHeight = false;
+        rowsLayout.childForceExpandWidth = true;
+        rowsLayout.childForceExpandHeight = false;
+
+        ContentSizeFitter rowsFitter = rowsObject.GetComponent<ContentSizeFitter>();
+        rowsFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        panelRoot.gameObject.SetActive(false);
+    }
+
+    private void CreateHeader(Transform parent)
+    {
+        GameObject headerObject = new GameObject("Header", typeof(RectTransform), typeof(Image), typeof(HorizontalLayoutGroup), typeof(LayoutElement));
+        headerObject.transform.SetParent(parent, false);
+
+        LayoutElement layoutElement = headerObject.GetComponent<LayoutElement>();
+        layoutElement.preferredHeight = HeaderHeight;
+        layoutElement.minHeight = HeaderHeight;
+
+        Image background = headerObject.GetComponent<Image>();
+        background.color = new Color(0.01f, 0.014f, 0.018f, 0.96f);
+        background.raycastTarget = false;
+
+        HorizontalLayoutGroup layout = headerObject.GetComponent<HorizontalLayoutGroup>();
+        layout.padding = new RectOffset(8, 8, 0, 0);
+        layout.spacing = ColumnSpacing;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = true;
+
+        for (int i = 0; i < Headers.Length; i++)
+        {
+            CreateColumnText(Headers[i], headerObject.transform, i, HeaderFontSize, GetColumnAlignment(i), new Color(0.72f, 0.78f, 0.82f, 1f));
+            if (i < Headers.Length - 1)
+                CreateColumnSeparator(headerObject.transform, true);
+        }
+    }
+
+    private void EnsureRowCount(int count)
+    {
+        while (rows.Count < count)
+            rows.Add(CreateRow(rows.Count));
+    }
+
+    private ScoreRow CreateRow(int index)
+    {
+        GameObject rowObject = new GameObject($"Player {index + 1}", typeof(RectTransform), typeof(Image), typeof(HorizontalLayoutGroup), typeof(LayoutElement));
+        rowObject.transform.SetParent(rowsRoot, false);
+
+        LayoutElement layoutElement = rowObject.GetComponent<LayoutElement>();
+        layoutElement.preferredHeight = RowHeight;
+        layoutElement.minHeight = RowHeight;
+
+        Image background = rowObject.GetComponent<Image>();
+        background.color = new Color(0.06f, 0.075f, 0.085f, 0.84f);
+        background.raycastTarget = false;
+
+        HorizontalLayoutGroup layout = rowObject.GetComponent<HorizontalLayoutGroup>();
+        layout.padding = new RectOffset(8, 8, 0, 0);
+        layout.spacing = ColumnSpacing;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = true;
+
+        Text[] columns = new Text[Headers.Length];
+        for (int i = 0; i < columns.Length; i++)
+        {
+            columns[i] = CreateColumnText(string.Empty, rowObject.transform, i, RowFontSize, GetColumnAlignment(i), Color.white);
+            if (i < columns.Length - 1)
+                CreateColumnSeparator(rowObject.transform, false);
+        }
+
+        return new ScoreRow
+        {
+            root = rowObject,
+            background = background,
+            columns = columns
+        };
+    }
+
+    private Text CreateColumnText(string value, Transform parent, int columnIndex, int size, TextAnchor alignment, Color color)
+    {
+        GameObject textObject = new GameObject($"Column {columnIndex}", typeof(RectTransform), typeof(Text), typeof(LayoutElement));
+        textObject.transform.SetParent(parent, false);
+
+        LayoutElement layoutElement = textObject.GetComponent<LayoutElement>();
+        layoutElement.preferredWidth = columnIndex >= 0 && columnIndex < ColumnWidths.Length ? ColumnWidths[columnIndex] : 70f;
+        layoutElement.minWidth = Mathf.Min(layoutElement.preferredWidth, 42f);
+        layoutElement.flexibleWidth = columnIndex >= 0 && columnIndex < ColumnFlexWeights.Length ? ColumnFlexWeights[columnIndex] : 1f;
+
+        Text text = textObject.GetComponent<Text>();
+        text.font = font;
+        text.fontSize = size;
+        text.alignment = alignment;
+        text.color = color;
+        text.text = value;
+        text.horizontalOverflow = HorizontalWrapMode.Wrap;
+        text.verticalOverflow = VerticalWrapMode.Truncate;
+        text.resizeTextForBestFit = true;
+        text.resizeTextMinSize = Mathf.Max(9, size - 3);
+        text.resizeTextMaxSize = size;
+        text.raycastTarget = false;
+        return text;
+    }
+
+    private static void CreateColumnSeparator(Transform parent, bool header)
+    {
+        GameObject separatorObject = new GameObject("Column Separator", typeof(RectTransform), typeof(Image), typeof(LayoutElement));
+        separatorObject.transform.SetParent(parent, false);
+
+        LayoutElement layoutElement = separatorObject.GetComponent<LayoutElement>();
+        layoutElement.preferredWidth = ColumnSeparatorWidth;
+        layoutElement.minWidth = ColumnSeparatorWidth;
+        layoutElement.flexibleWidth = 0f;
+
+        Image image = separatorObject.GetComponent<Image>();
+        image.color = header
+            ? new Color(0.12f, 0.17f, 0.21f, 0.95f)
+            : new Color(0.16f, 0.22f, 0.26f, 0.78f);
+        image.raycastTarget = false;
+    }
+
+    private void ApplyRow(ScoreRow row, PlayerRowInfo info, int rowIndex)
+    {
+        row.columns[0].text = info.isLocal ? $"{Shorten(info.displayName, 16)} *" : Shorten(info.displayName, 18);
+        row.columns[1].text = info.status;
+        row.columns[2].text = $"{info.health}/{info.maxHealth}";
+        row.columns[3].text = $"{info.hunger}/{info.maxHunger}";
+        row.columns[4].text = $"{info.thirst}/{info.maxThirst}";
+        row.columns[5].text = $"L{info.level} {info.experience}/{info.experienceToNextLevel}";
+        row.columns[6].text = info.zombieKills.ToString();
+        row.columns[7].text = Mathf.RoundToInt(info.damageDealt).ToString();
+        row.columns[8].text = info.deaths.ToString();
+        row.columns[9].text = info.revives.ToString();
+        row.columns[10].text = info.pingMs >= 0 ? $"{info.pingMs}ms" : "-";
+        row.columns[11].text = info.score.ToString();
+
+        Color statusColor = ResolveStatusColor(info.status);
+        row.columns[1].color = statusColor;
+        row.columns[2].color = statusColor;
+
+        row.background.color = info.isLocal
+            ? new Color(0.12f, 0.15f, 0.16f, 0.96f)
+            : rowIndex % 2 == 0
+                ? new Color(0.055f, 0.065f, 0.075f, 0.88f)
+                : new Color(0.045f, 0.055f, 0.065f, 0.88f);
+    }
+
+    private static Color ResolveStatusColor(string status)
+    {
+        return status switch
+        {
+            "Мертв" => new Color(0.95f, 0.25f, 0.22f, 1f),
+            "Воскрешается" => new Color(0.65f, 0.82f, 1f, 1f),
+            "При смерти" => new Color(1f, 0.44f, 0.18f, 1f),
+            "Низкое HP" => new Color(0.98f, 0.76f, 0.22f, 1f),
+            _ => new Color(0.35f, 0.9f, 0.5f, 1f)
+        };
+    }
+
+    private static string Shorten(string value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length <= maxLength)
+            return value;
+
+        return value.Substring(0, Mathf.Max(1, maxLength - 1)) + ".";
+    }
+
+    private static float GetPreferredPanelWidth()
+    {
+        float width = PanelPadding.left + PanelPadding.right;
+        for (int i = 0; i < ColumnWidths.Length; i++)
+            width += ColumnWidths[i];
+
+        return width + ColumnSpacing * Mathf.Max(0, ColumnWidths.Length - 1);
+    }
+
+    private static TextAnchor GetColumnAlignment(int columnIndex)
+    {
+        return TextAnchor.MiddleCenter;
+    }
+}
+
+[DisallowMultipleComponent]
 public class CoopReviveMarker : MonoBehaviour
 {
+    private static readonly HashSet<int> revivingOwners = new();
+
     [SerializeField] private int deadOwnerId;
     [SerializeField] private float holdSeconds = 3f;
     [SerializeField] private float interactionRange = 3f;
@@ -4549,6 +5775,11 @@ public class CoopReviveMarker : MonoBehaviour
     private bool promptOwned;
 
     public int DeadOwnerId => deadOwnerId;
+
+    public static bool IsReviving(int ownerId)
+    {
+        return ownerId > 0 && revivingOwners.Contains(ownerId);
+    }
 
     public void Configure(int ownerId, float requiredHoldSeconds)
     {
@@ -4589,6 +5820,11 @@ public class CoopReviveMarker : MonoBehaviour
 
         bool isHeld = IsUseHeld(inputs);
         holdTimer = isHeld ? holdTimer + Time.deltaTime : 0f;
+        if (holdTimer > 0f)
+            revivingOwners.Add(deadOwnerId);
+        else
+            revivingOwners.Remove(deadOwnerId);
+
         float progress = holdTimer / Mathf.Max(0.1f, holdSeconds);
         promptOwned = true;
         CoopRevivePromptUI.Show("Удерживайте F, чтобы воскресить", progress);
@@ -4621,6 +5857,7 @@ public class CoopReviveMarker : MonoBehaviour
     private void ResetInteraction()
     {
         holdTimer = 0f;
+        revivingOwners.Remove(deadOwnerId);
 
         if (promptOwned)
         {

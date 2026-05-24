@@ -65,7 +65,7 @@ public class CoopNetworkSession : MonoBehaviour
     public int CurrentPlayers => Mathf.Max(currentPlayers, CoopSessionState.IsCoopSession ? 1 : 0);
     public int MaxPlayers => CoopSessionState.MaxPlayers;
     public string LastStatus => lastStatus;
-    public bool CanStartGame => IsHost && CurrentPlayers >= 2;
+    public bool CanStartGame => IsHost && CoopSessionState.IsCoopSession;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void ConfigureRuntimeForCoop()
@@ -167,7 +167,14 @@ public class CoopNetworkSession : MonoBehaviour
         }
 
         Application.runInBackground = true;
-        CoopSessionState.ConfigureClient("Подключение", $"{host}:{port}", host, port, 2, "Ожидание", "Demo_City_Universal_RenderPipeline");
+        CoopSessionState.ConfigureClient(
+            "Подключение",
+            $"{host}:{port}",
+            host,
+            port,
+            2,
+            CoopSessionState.DefaultLocationDisplayName,
+            CoopSessionState.DefaultSceneName);
         currentPlayers = 1;
         clientConnected = false;
         lastBroadcastPlayers = -1;
@@ -191,7 +198,7 @@ public class CoopNetworkSession : MonoBehaviour
 
         if (!CanStartGame)
         {
-            SetStatus("Нужен минимум второй игрок.");
+            SetStatus("Сначала создай комнату.");
             return;
         }
 
@@ -390,7 +397,7 @@ public class CoopNetworkSession : MonoBehaviour
 
         if (connections.Length > 0)
         {
-            SetStatus(CurrentPlayers >= 2 ? "Игрок подключился. Можно запускать." : "Ожидание второго игрока.");
+            SetStatus(CurrentPlayers > 1 ? "Игрок подключился. Можно запускать." : "Комната готова. Можно запускать в бункер.");
             NotifyRoomChanged();
         }
     }

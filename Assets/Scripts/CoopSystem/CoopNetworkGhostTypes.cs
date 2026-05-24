@@ -13,6 +13,23 @@ public struct CoopPlayerGhostState : IComponentData
     [GhostField] public byte Flags;
     [GhostField] public float Health;
     [GhostField] public float MaxHealth;
+    [GhostField] public float Hunger;
+    [GhostField] public float MaxHunger;
+    [GhostField] public float Thirst;
+    [GhostField] public float MaxThirst;
+    [GhostField] public float Stamina;
+    [GhostField] public float MaxStamina;
+    [GhostField] public int CurrentAmmo;
+    [GhostField] public int ReserveAmmo;
+    [GhostField] public int Level;
+    [GhostField] public int Experience;
+    [GhostField] public int ExperienceToNextLevel;
+    [GhostField] public int ZombieKills;
+    [GhostField] public float DamageDealt;
+    [GhostField] public int Deaths;
+    [GhostField] public int Revives;
+    [GhostField] public int PingMs;
+    [GhostField] public int Score;
     [GhostField] public uint Sequence;
 }
 
@@ -39,6 +56,23 @@ public struct CoopPlayerSnapshotRpc : IRpcCommand
     public byte Flags;
     public float Health;
     public float MaxHealth;
+    public float Hunger;
+    public float MaxHunger;
+    public float Thirst;
+    public float MaxThirst;
+    public float Stamina;
+    public float MaxStamina;
+    public int CurrentAmmo;
+    public int ReserveAmmo;
+    public int Level;
+    public int Experience;
+    public int ExperienceToNextLevel;
+    public int ZombieKills;
+    public float DamageDealt;
+    public int Deaths;
+    public int Revives;
+    public int PingMs;
+    public int Score;
     public FixedString64Bytes PlayerName;
     public float ClientTime;
     public uint Sequence;
@@ -181,6 +215,20 @@ public struct CoopGameOverResultRpc : IRpcCommand
 public struct CoopLootContainerRequestRpc : IRpcCommand
 {
     public FixedString128Bytes ContainerId;
+}
+
+public struct CoopPlayerInventoryClearRpc : IRpcCommand
+{
+    public int OwnerId;
+    public uint Sequence;
+}
+
+public struct CoopPlayerInventorySlotRpc : IRpcCommand
+{
+    public int OwnerId;
+    public FixedString64Bytes ItemId;
+    public int Amount;
+    public uint Sequence;
 }
 
 public struct CoopLootTransferRequestRpc : IRpcCommand
