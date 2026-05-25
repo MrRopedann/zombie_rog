@@ -1,50 +1,98 @@
 # Game Design
 
-## Core Loop
+## Основной игровой цикл
 
-The player starts in the bunker, prepares equipment and inventory, chooses a location, enters a raid, completes objectives, searches for loot, activates extraction, returns to the bunker, receives rewards, and saves progress.
+Игрок начинает в бункере, подготавливает снаряжение и инвентарь, выбирает локацию, отправляется в рейд, выполняет задачи, ищет лут, активирует эвакуацию, возвращается в бункер, получает награды и сохраняет прогресс.
 
-## Bunker
+## Бункер
 
-The bunker is the safe base. It is used for storage, sorting items, preparing loadouts, interacting with terminals, and later placing or upgrading stations. In the current MVP, the bunker needs only a manager, a storage container, and a terminal that opens location selection.
+Бункер — это безопасная база. Он используется для хранения предметов, сортировки ресурсов, подготовки снаряжения, взаимодействия с терминалами, а в будущем — для размещения и улучшения станций.
 
-## Raids
+В текущем MVP бункеру нужны только менеджер, контейнер-хранилище и терминал, который открывает выбор локации.
 
-A raid is a temporary dangerous session in a selected location. The player enters with current character stats and inventory, completes a required mission, optionally gathers loot, and must extract to keep progress.
+## Рейды
 
-## Locations
+Рейд — это временная опасная сессия на выбранной локации. Игрок входит в рейд с текущими характеристиками персонажа и инвентарём, выполняет обязательную миссию, при желании собирает лут и должен эвакуироваться, чтобы сохранить прогресс.
 
-Locations are configured as `LocationDefinition` ScriptableObjects. Each location has an id, display name, description, scene name, difficulty, recommended level, base experience reward, unlock state, and available missions.
+## Локации
 
-## Objectives
+Локации настраиваются через ScriptableObject `LocationDefinition`.
 
-Objectives are configured through `MissionDefinition`. The first MVP objective is `KillZombies`: kill a target number of zombies, then activate extraction. Other planned objective types are loot, interact, survive, and extract.
+Каждая локация содержит:
 
-## Statistics
+- id;
+- отображаемое название;
+- описание;
+- название сцены;
+- сложность;
+- рекомендуемый уровень;
+- базовую награду опытом;
+- состояние разблокировки;
+- доступные миссии.
 
-Raid statistics track:
+## Задачи
 
-- Zombie kills.
-- Damage dealt.
-- Damage taken.
-- Items looted.
-- Required and optional objectives completed.
-- Allies revived.
-- Raid time.
-- Extraction success.
+Задачи настраиваются через `MissionDefinition`.
 
-## Rewards
+Первая задача для MVP — `KillZombies`: убить заданное количество зомби, после чего активируется эвакуация.
 
-Experience is calculated at the end of a raid, not directly when a zombie dies. The base formula rewards kills, damage dealt, completed objectives, revives, successful extraction, and applies a location difficulty multiplier.
+Другие запланированные типы задач:
 
-## Experience
+- сбор лута;
+- взаимодействие с объектом;
+- выживание;
+- эвакуация.
 
-`CharacterProgression` is the single place responsible for adding experience, checking level ups, awarding stat points, and spending stat points. `CharacterStats` stores current character values and recalculates derived stats.
+## Статистика
 
-## Inventory
+Статистика рейда отслеживает:
 
-Items are represented by `ItemSO`. Save data stores item ids and stack amounts, not direct ScriptableObject references. Loot taken during a raid remains in the player inventory when returning to the bunker.
+- убийства зомби;
+- нанесённый урон;
+- полученный урон;
+- собранные предметы;
+- выполненные обязательные и дополнительные задачи;
+- возрождения союзников;
+- время рейда;
+- успешность эвакуации.
 
-## Future Co-op
+## Награды
 
-The MVP is singleplayer first. New raid systems expose events for future sync through `CoopGameplaySync`: raid start/completion, extraction activation, objective progress/completion, and per-player stats/rewards.
+Опыт рассчитывается в конце рейда, а не напрямую при смерти зомби.
+
+Базовая формула награждает игрока за:
+
+- убийства;
+- нанесённый урон;
+- выполненные задачи;
+- возрождения союзников;
+- успешную эвакуацию.
+
+Также применяется множитель сложности локации.
+
+## Опыт
+
+`CharacterProgression` — единственное место, отвечающее за добавление опыта, проверку повышения уровня, выдачу очков характеристик и их трату.
+
+`CharacterStats` хранит текущие значения персонажа и пересчитывает производные характеристики.
+
+## Инвентарь
+
+Предметы представлены через `ItemSO`.
+
+В данных сохранения хранятся id предметов и количество в стаке, а не прямые ссылки на ScriptableObject.
+
+Лут, собранный во время рейда, остаётся в инвентаре игрока после возвращения в бункер.
+
+## Будущий кооператив
+
+MVP сначала реализуется в одиночном режиме.
+
+Новые системы рейдов должны предоставлять события для будущей синхронизации через `CoopGameplaySync`:
+
+- начало рейда;
+- завершение рейда;
+- активация эвакуации;
+- прогресс задач;
+- завершение задач;
+- статистика и награды по каждому игроку.
