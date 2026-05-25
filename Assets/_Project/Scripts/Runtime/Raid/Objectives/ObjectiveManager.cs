@@ -16,6 +16,15 @@ public class ObjectiveManager : MonoBehaviour
     public event Action<IObjective> OnObjectiveCompleted;
     public event Action OnAllRequiredObjectivesCompleted;
 
+    private void Update()
+    {
+        for (int i = 0; i < objectives.Count; i++)
+        {
+            if (objectives[i] is SurviveObjective surviveObjective)
+                surviveObjective.Tick(Time.deltaTime);
+        }
+    }
+
     public void StartObjectives(IEnumerable<MissionDefinition> missions)
     {
         ClearObjectives();
@@ -138,6 +147,24 @@ public class ObjectiveManager : MonoBehaviour
         return hasRequired;
     }
 
+    public bool ShouldActivateExtractionImmediately()
+    {
+        bool hasRequired = false;
+
+        for (int i = 0; i < objectives.Count; i++)
+        {
+            IObjective objective = objectives[i];
+            if (objective == null || !objective.IsRequired)
+                continue;
+
+            hasRequired = true;
+            if (!(objective is ExtractObjective))
+                return false;
+        }
+
+        return hasRequired;
+    }
+
     private static IObjective CreateObjective(MissionDefinition mission)
     {
         return mission.missionType switch
@@ -145,6 +172,7 @@ public class ObjectiveManager : MonoBehaviour
             MissionType.KillZombies => new KillObjective(mission),
             MissionType.LootItems => new LootObjective(mission),
             MissionType.Interact => new InteractObjective(mission),
+            MissionType.Survive => new SurviveObjective(mission),
             MissionType.Extract => new ExtractObjective(mission),
             _ => new InteractObjective(mission)
         };

@@ -80,7 +80,11 @@ public class BunkerManager : MonoBehaviour
         for (int i = 0; i < stations.Count; i++)
         {
             BuildableStation station = stations[i];
-            if (station != null && station.Installed)
+            if (station == null)
+                continue;
+
+            data.stations.Add(station.GetSaveData());
+            if (station.Installed)
                 data.installedStationIds.Add(station.StationId);
         }
 
@@ -112,7 +116,24 @@ public class BunkerManager : MonoBehaviour
         if (storage != null)
             storage.LoadFromSaveData(data.storage);
 
-        if (data.installedStationIds != null && data.installedStationIds.Count > 0)
+        if (data.stations != null && data.stations.Count > 0)
+        {
+            Dictionary<string, StationSaveData> stationsById = new Dictionary<string, StationSaveData>();
+            for (int i = 0; i < data.stations.Count; i++)
+            {
+                StationSaveData stationData = data.stations[i];
+                if (stationData != null && !string.IsNullOrWhiteSpace(stationData.stationId))
+                    stationsById[stationData.stationId.Trim()] = stationData;
+            }
+
+            for (int i = 0; i < stations.Count; i++)
+            {
+                BuildableStation station = stations[i];
+                if (station != null && stationsById.TryGetValue(station.StationId, out StationSaveData stationData))
+                    station.LoadFromSaveData(stationData);
+            }
+        }
+        else if (data.installedStationIds != null && data.installedStationIds.Count > 0)
         {
             for (int i = 0; i < stations.Count; i++)
             {

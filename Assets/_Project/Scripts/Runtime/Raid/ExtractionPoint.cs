@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 [DisallowMultipleComponent]
@@ -10,6 +11,7 @@ public class ExtractionPoint : MonoBehaviour
     [SerializeField] private bool activeOnStart = false;
 
     public bool IsActive { get; private set; }
+    public static event Action<ExtractionPoint> OnAnyExtractionSucceeded;
 
     private void Awake()
     {
@@ -34,6 +36,7 @@ public class ExtractionPoint : MonoBehaviour
             return;
 
         ResolveReferences();
+        OnAnyExtractionSucceeded?.Invoke(this);
         if (raidManager != null)
             raidManager.CompleteRaid(true);
     }

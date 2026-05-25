@@ -12,9 +12,11 @@ The player creates a survivor, prepares in a safe bunker, chooses a dangerous lo
 
 ## Current Status
 
-The project is in active development. The current milestone is a singleplayer vertical slice:
+The project is in active development. Roadmap items 1-9 are implemented at MVP level and still need regular Unity playtesting:
 
 Bunker -> location selection -> raid -> kill zombies objective -> extraction -> result screen -> experience reward -> save -> return to bunker.
+
+The next active milestone is basic crafting and bunker stations. Full base-building and full co-op raid sync remain future work.
 
 ## Implemented Systems
 
@@ -25,6 +27,8 @@ Bunker -> location selection -> raid -> kill zombies objective -> extraction -> 
 - Shooting with weapon definitions, ammo, hitscan/projectile support, shot effects, and IK hooks.
 - Early co-op layer with session state, gameplay sync, network identity, transforms, menu, and scoreboard.
 - Save system based on Easy Save 3 for players, inventories, containers, world items, zombies, weapons, and saveable scene objects.
+- MVP bunker, location selection, raid manager, objectives, extraction, result UI, reward calculation, and progression save/return.
+- Basic crafting runtime, temporary UGUI crafting UI, starter recipes, and station upgrade scaffolding.
 
 ## Opening the Project
 
@@ -33,6 +37,28 @@ Bunker -> location selection -> raid -> kill zombies objective -> extraction -> 
 3. Let Unity restore packages from `Packages/manifest.json`.
 4. Open `Assets/_Project/Scenes/Main/MainScene.unity` or `Assets/_Project/Scenes/Bunker/Bunker.unity`.
 5. Ensure build settings include `MainScene`, `Bunker`, and the raid scene such as `City`.
+
+## Build Settings Scenes
+
+- `Assets/_Project/Scenes/Main/MainScene.unity`
+- `Assets/_Project/Scenes/Bunker/Bunker.unity`
+- `Assets/_Project/Scenes/Locations/City/City.unity`
+
+## Vertical Slice Check
+
+1. Open `Bunker`.
+2. Run `Zombie Rogue/MVP/Create Or Refresh Test Assets` if MVP assets are missing.
+3. Run `Zombie Rogue/MVP/Setup Open Bunker Scene` in the bunker scene.
+4. Open `City` and run `Zombie Rogue/MVP/Setup Open Raid Scene`.
+5. Start from `Bunker`, interact with the terminal, choose `MVP_CityLocation`, start the raid, kill the required zombies, enter extraction, continue from the result screen, and confirm the player returns to `Bunker`.
+
+## Required ScriptableObjects
+
+- `MVP_CityLocation` and `MVP_KillZombies` in `Assets/_Project/Resources/RuntimeLoadedOnly/Data/Raid/`.
+- Starter test locations such as `City Easy`, `City Medium`, `Medical Raid`, and `Test Location` in the same folder.
+- Item assets in `Assets/_Project/Resources/RuntimeLoadedOnly/Data/Item/`.
+- Crafting recipes in `Assets/_Project/Resources/RuntimeLoadedOnly/Data/Crafting/`.
+- Station definitions in `Assets/_Project/Resources/RuntimeLoadedOnly/Data/Bunker/`.
 
 ## Unity Packages
 
@@ -48,16 +74,19 @@ Bunker -> location selection -> raid -> kill zombies objective -> extraction -> 
 - Unity MCP
 - Easy Save 3 plugin in `Assets/Plugins`
 
-## Nearest MVP
+## In Progress
 
-- Bunker manager and terminal.
-- Location and mission ScriptableObject configs.
-- Raid manager with objective tracking.
-- Kill zombies objective.
-- Extraction point activation.
-- Raid result UI.
-- Experience reward through `CharacterProgression`.
-- Progress save after returning to the bunker.
+- Stabilize the implemented MVP loop in Unity Editor.
+- Wire workbench scene objects to `CraftingStation` and `CraftingUI`.
+- Wire buildable bunker station objects to `BuildableStation`, `StationDefinition`, and `StationUpgradeSystem`.
+- Keep co-op integration limited to events and TODO hooks until singleplayer raid/crafting flow is stable.
+
+## Known Risks
+
+- Unity must be opened/refreshed to verify scene references after script moves.
+- The active Unity instance prevents a second batchmode compile on the same project.
+- Runtime-generated UGUI is intentionally temporary.
+- New station definitions have no final world prefabs assigned yet.
 
 ## Development Warning
 

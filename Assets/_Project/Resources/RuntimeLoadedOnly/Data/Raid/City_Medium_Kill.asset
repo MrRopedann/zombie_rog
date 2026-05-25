@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 419250c1e4556ed4cb86bec634171254, type: 3}
+  m_Name: City_Medium_Kill
+  m_EditorClassIdentifier: 
+  missionId: city_medium_kill
+  displayName: Thin the horde
+  description: Kill 8 zombies before extraction.
+  missionType: 0
+  targetCount: 8
+  experienceReward: 250
+  isRequired: 1
+  optionalObjective: 0
+  requiredItemId: 
+  targetInteractableId: 
+  surviveSeconds: 60

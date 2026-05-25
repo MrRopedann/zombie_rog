@@ -204,6 +204,8 @@ Assets/_Project/Resources/RuntimeLoadedOnly/Prefabs/Zombie/SM_Prop_DeadBody_Layi
 Assets/_Project/Resources/RuntimeLoadedOnly/Prefabs/Zombie/SM_Prop_DeadBody_Laying_Male_01.prefab
 ```
 
+После MVP-stabilization в этом же namespace добавлены runtime-loaded конфиги для crafting recipes, bunker station definitions, дополнительных raid locations/missions и нескольких starter ItemSO для крафта.
+
 Причина: эти ассеты используются проектными вызовами `Resources.Load` или `Resources.LoadAll`:
 
 ```text
@@ -253,6 +255,28 @@ Assets/_Project/Scripts/Runtime/Input/InputActions.cs
 ## Resources.Load после рефакторинга
 
 Проектный код теперь использует `RuntimeLoadedOnly/...` для осознанных runtime-загрузок. Внешние вызовы `Resources.Load` внутри Easy Save 3 и TextMesh Pro не изменялись.
+
+## MVP gameplay systems после стабилизации
+
+Новые MVP-скрипты больше не лежат в старых `Assets/Scripts/...` путях. Они перенесены в project-owned структуру с сохранением `.meta`:
+
+```text
+Assets/_Project/Scripts/Runtime/Bunker/
+Assets/_Project/Scripts/Runtime/Core/GameFlow/
+Assets/_Project/Scripts/Runtime/Raid/
+Assets/_Project/Scripts/Runtime/Raid/Objectives/
+Assets/_Project/Scripts/Runtime/UI/Raid/
+Assets/_Project/Scripts/Runtime/Save/ItemDatabase.cs
+```
+
+Новый crafting/station слой размещен здесь:
+
+```text
+Assets/_Project/Scripts/Runtime/Crafting/
+Assets/_Project/Scripts/Runtime/UI/Crafting/
+Assets/_Project/Resources/RuntimeLoadedOnly/Data/Crafting/
+Assets/_Project/Resources/RuntimeLoadedOnly/Data/Bunker/
+```
 
 Остались два риска, которые не исправлялись автоматически:
 

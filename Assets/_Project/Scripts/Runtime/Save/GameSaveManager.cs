@@ -339,7 +339,8 @@ public class GameSaveManager : MonoBehaviour
             (string.IsNullOrWhiteSpace(bunker.bunkerId) &&
             (bunker.storage == null || bunker.storage.slots == null || bunker.storage.slots.Count == 0) &&
             (bunker.unlockedLocations == null || bunker.unlockedLocations.Count == 0) &&
-            (bunker.installedStationIds == null || bunker.installedStationIds.Count == 0));
+            (bunker.installedStationIds == null || bunker.installedStationIds.Count == 0) &&
+            (bunker.stations == null || bunker.stations.Count == 0));
     }
 
     private void ApplySave(GameSaveData data)
@@ -1204,6 +1205,7 @@ public class BunkerSaveData
     public InventorySaveData storage = new();
     public List<UnlockedLocationSaveData> unlockedLocations = new();
     public List<string> installedStationIds = new();
+    public List<StationSaveData> stations = new();
 }
 
 [Serializable]
@@ -1211,6 +1213,18 @@ public class UnlockedLocationSaveData
 {
     public string locationId;
     public bool unlocked;
+}
+
+[Serializable]
+public class StationSaveData
+{
+    public string stationId;
+    public string stationType;
+    public int stationLevel;
+    public Vector3 position;
+    public Vector3 rotation;
+    public bool isUnlocked;
+    public bool isBuilt;
 }
 
 [Serializable]

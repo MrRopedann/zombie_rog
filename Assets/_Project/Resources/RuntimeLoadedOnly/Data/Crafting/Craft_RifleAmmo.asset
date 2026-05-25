@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: df07d3ebc2f0491fb8781b59feee5856, type: 3}
+  m_Name: Craft_RifleAmmo
+  m_EditorClassIdentifier: 
+  recipeId: craft_rifle_ammo
+  displayName: Rifle Ammo
+  description: Repack scavenged materials into rifle ammunition.
+  icon: {fileID: 0}
+  requiredStationType: 2
+  requiredStationLevel: 1
+  ingredients:
+  - item: {fileID: 11400000, guid: 43007577a5bf9134392f912dd74cb93b, type: 2}
+    itemId: 2
+    amount: 1
+  - item: {fileID: 11400000, guid: 618b36fc78c713b4986953b6d87ebf3a, type: 2}
+    itemId: 1
+    amount: 2
+  resultItem: {fileID: 11400000, guid: 671c9510f29922247b1f2e0d1eceff83, type: 2}
+  resultAmount: 10
+  craftTime: 0
+  isUnlockedByDefault: 1

@@ -5,5 +5,8 @@ public enum StationType
     Medical,
     WeaponUpgrade,
     Generator,
-    Radio
+    Radio,
+    MedicalStation = Medical,
+    WeaponBench = WeaponUpgrade,
+    RadioTerminal = Radio
 }

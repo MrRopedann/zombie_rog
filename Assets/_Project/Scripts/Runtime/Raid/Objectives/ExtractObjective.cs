@@ -8,4 +8,19 @@ public class ExtractObjective : ObjectiveBase
     {
         AddProgress(TargetCount);
     }
+
+    protected override void Subscribe()
+    {
+        ExtractionPoint.OnAnyExtractionSucceeded += HandleExtractionSucceeded;
+    }
+
+    protected override void Unsubscribe()
+    {
+        ExtractionPoint.OnAnyExtractionSucceeded -= HandleExtractionSucceeded;
+    }
+
+    private void HandleExtractionSucceeded(ExtractionPoint extractionPoint)
+    {
+        RegisterExtraction();
+    }
 }

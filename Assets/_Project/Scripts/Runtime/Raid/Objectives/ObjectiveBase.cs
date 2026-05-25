@@ -10,10 +10,10 @@ public abstract class ObjectiveBase : IObjective
     public string MissionId => mission != null ? mission.missionId : string.Empty;
     public string DisplayName => mission != null ? mission.DisplayNameOrId : "Objective";
     public string Description => mission != null ? mission.description : string.Empty;
-    public bool IsRequired => mission == null || mission.isRequired;
+    public bool IsRequired => mission == null || (mission.isRequired && !mission.optionalObjective);
     public ObjectiveState State => state;
     public int CurrentCount => currentCount;
-    public int TargetCount => mission != null ? Mathf.Max(1, mission.targetCount) : 1;
+    public virtual int TargetCount => mission != null ? Mathf.Max(1, mission.targetCount) : 1;
 
     public event Action<IObjective> OnProgressChanged;
     public event Action<IObjective> OnCompleted;

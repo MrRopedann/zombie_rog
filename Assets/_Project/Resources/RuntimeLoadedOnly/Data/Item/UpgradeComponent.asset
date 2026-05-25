@@ -1,0 +1,40 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f8db820b08aaa2a49921926d6876e5dc, type: 3}
+  m_Name: UpgradeComponent
+  m_EditorClassIdentifier: 
+  itemID: upgrade_component
+  itemName: Upgrade Component
+  weight: 1
+  description: A generic part used for early bunker station upgrades.
+  icon: {fileID: 0}
+  worldPrefab: {fileID: 0}
+  inventoryRotation: {x: 0, y: 0, z: 0}
+  worldVisualOffset: {x: 0, y: 0, z: 0}
+  worldVisualRotation: {x: 0, y: 0, z: 0}
+  worldVisualScale: {x: 1, y: 1, z: 1}
+  itemType: 3
+  rarity: 1
+  value: 10
+  pickupRadius: 2
+  createRuntimeHint: 1
+  pickupHintText: E
+  isStackable: 1
+  maxStack: 20
+  isUsable: 0
+  isConsumable: 0
+  ammoWeaponDefinition: {fileID: 0}
+  ammoWeaponID: 
+  ammoAmount: 10
+  thirstRestoreAmount: 0
+  hungerRestoreAmount: 0
+  healthRestoreAmount: 0

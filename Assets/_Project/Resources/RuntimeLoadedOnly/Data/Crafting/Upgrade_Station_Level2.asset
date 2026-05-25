@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: df07d3ebc2f0491fb8781b59feee5856, type: 3}
+  m_Name: Upgrade_Station_Level2
+  m_EditorClassIdentifier: 
+  recipeId: upgrade_station_level_2
+  displayName: Station Upgrade I
+  description: Spend one upgrade component to raise an early station by one level.
+  icon: {fileID: 0}
+  requiredStationType: 0
+  requiredStationLevel: 1
+  ingredients:
+  - item: {fileID: 11400000, guid: 3f143dd99dde46b98ccbb58f93288bb9, type: 2}
+    itemId: upgrade_component
+    amount: 1
+  resultItem: {fileID: 11400000, guid: 3f143dd99dde46b98ccbb58f93288bb9, type: 2}
+  resultAmount: 1
+  craftTime: 0
+  isUnlockedByDefault: 1

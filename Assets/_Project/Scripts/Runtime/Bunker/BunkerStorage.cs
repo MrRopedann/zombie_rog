@@ -42,6 +42,86 @@ public class BunkerStorage : MonoBehaviour
         return data;
     }
 
+    public int GetItemAmount(ItemSO item)
+    {
+        if (item == null)
+            return 0;
+
+        LootContainer container = StorageContainer;
+        IReadOnlyList<InventorySlot> slots = container != null ? container.Slots : null;
+        if (slots == null)
+            return 0;
+
+        int amount = 0;
+        for (int i = 0; i < slots.Count; i++)
+        {
+            InventorySlot slot = slots[i];
+            if (slot != null && slot.item == item)
+                amount += slot.amount;
+        }
+
+        return amount;
+    }
+
+    public bool HasItem(ItemSO item, int count = 1)
+    {
+        return item != null && count > 0 && GetItemAmount(item) >= count;
+    }
+
+    public bool HasItems(IEnumerable<ItemAmount> items)
+    {
+        if (items == null)
+            return true;
+
+        foreach (ItemAmount itemAmount in items)
+        {
+            if (itemAmount == null || itemAmount.amount <= 0)
+                continue;
+
+            ItemSO item = ResolveItemAmountItem(itemAmount);
+            if (item == null || !HasItem(item, itemAmount.amount))
+                return false;
+        }
+
+        return true;
+    }
+
+    public bool CanAddItem(ItemSO item, int amount = 1)
+    {
+        LootContainer container = StorageContainer;
+        return container != null && container.CanAddItem(item, amount);
+    }
+
+    public bool AddItem(ItemSO item, int amount = 1)
+    {
+        LootContainer container = StorageContainer;
+        return container != null && container.AddItem(item, amount);
+    }
+
+    public bool RemoveItem(ItemSO item, int amount = 1)
+    {
+        LootContainer container = StorageContainer;
+        return container != null && container.RemoveItem(item, amount);
+    }
+
+    public bool RemoveItems(IEnumerable<ItemAmount> items)
+    {
+        if (!HasItems(items))
+            return false;
+
+        foreach (ItemAmount itemAmount in items)
+        {
+            if (itemAmount == null || itemAmount.amount <= 0)
+                continue;
+
+            ItemSO item = ResolveItemAmountItem(itemAmount);
+            if (item != null && !RemoveItem(item, itemAmount.amount))
+                return false;
+        }
+
+        return true;
+    }
+
     public void LoadFromSaveData(InventorySaveData data)
     {
         LootContainer container = StorageContainer;
@@ -83,6 +163,17 @@ public class BunkerStorage : MonoBehaviour
         }
 
         return ItemDatabase.ResolveFromResources(itemId);
+    }
+
+    private ItemSO ResolveItemAmountItem(ItemAmount itemAmount)
+    {
+        if (itemAmount == null)
+            return null;
+
+        if (itemAmount.item != null)
+            return itemAmount.item;
+
+        return ResolveItem(itemAmount.itemId);
     }
 
     private static string GetItemId(ItemSO item)

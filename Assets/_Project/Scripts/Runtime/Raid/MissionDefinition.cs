@@ -10,6 +10,16 @@ public class MissionDefinition : ScriptableObject
     public int targetCount = 1;
     public int experienceReward = 0;
     public bool isRequired = true;
+    public bool optionalObjective = false;
+    public string requiredItemId;
+    public string targetInteractableId;
+    [Min(1f)] public float surviveSeconds = 60f;
 
     public string DisplayNameOrId => !string.IsNullOrWhiteSpace(displayName) ? displayName : missionId;
+
+    private void OnValidate()
+    {
+        targetCount = Mathf.Max(1, targetCount);
+        surviveSeconds = Mathf.Max(1f, surviveSeconds);
+    }
 }

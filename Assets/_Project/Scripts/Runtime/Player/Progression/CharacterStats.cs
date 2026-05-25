@@ -522,21 +522,9 @@ public class CharacterStats : MonoBehaviour
             return;
         }
 
-        currentExp += Mathf.Max(0, amount);
-        bool leveledUp = false;
-
-        while (currentExp >= expToNextLevel && expToNextLevel > 0)
-        {
-            currentExp -= expToNextLevel;
-            playerLevel++;
-            expToNextLevel = Mathf.Max(1, Mathf.RoundToInt(expToNextLevel * 1.4f));
-            leveledUp = true;
-        }
-
-        if (leveledUp)
-            RecalculateAllStats();
-
-        NotifyProgressionChanged();
+        Debug.LogWarning(
+            "CharacterStats.AddExperience was called, but no CharacterProgression was found. Experience was not applied to avoid a parallel level-up flow.",
+            this);
     }
 
     public void ApplyProgressionState(int level, int experience, int experienceToNextLevel, bool notify = true)

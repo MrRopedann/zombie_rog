@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c12ebccf0d921442bdff3861480a9ba, type: 3}
+  m_Name: Test_Location
+  m_EditorClassIdentifier: 
+  locationId: test_location
+  displayName: Test Location
+  description: Fast debug location config that uses the City scene.
+  sceneName: City
+  difficulty: 0
+  recommendedLevel: 1
+  baseExperienceReward: 20
+  isUnlockedByDefault: 1
+  availableMissions:
+  - {fileID: 11400000, guid: 4c0967ed5daf4dee9bc493ef1705bf0e, type: 2}

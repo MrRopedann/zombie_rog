@@ -93,6 +93,29 @@ public class PlayerInventory : MonoBehaviour
         return amount;
     }
 
+    public bool HasItem(ItemSO item, int count = 1)
+    {
+        return item != null && count > 0 && GetItemAmount(item) >= count;
+    }
+
+    public bool HasItems(IEnumerable<ItemAmount> items)
+    {
+        if (items == null)
+            return true;
+
+        foreach (ItemAmount itemAmount in items)
+        {
+            if (itemAmount == null || itemAmount.amount <= 0)
+                continue;
+
+            ItemSO item = ResolveItemAmountItem(itemAmount);
+            if (item == null || !HasItem(item, itemAmount.amount))
+                return false;
+        }
+
+        return true;
+    }
+
     public bool ContainsItem(ItemSO item)
     {
         return GetItemAmount(item) > 0;
@@ -217,6 +240,24 @@ public class PlayerInventory : MonoBehaviour
         }
 
         return remaining <= 0;
+    }
+
+    public bool RemoveItems(IEnumerable<ItemAmount> items)
+    {
+        if (!HasItems(items))
+            return false;
+
+        foreach (ItemAmount itemAmount in items)
+        {
+            if (itemAmount == null || itemAmount.amount <= 0)
+                continue;
+
+            ItemSO item = ResolveItemAmountItem(itemAmount);
+            if (item != null && !RemoveItem(item, itemAmount.amount))
+                return false;
+        }
+
+        return true;
     }
 
     public bool RemoveItem(ItemSO item, int count = 1)
@@ -485,6 +526,17 @@ public class PlayerInventory : MonoBehaviour
     {
         if (item != null && amount > 0)
             ItemAdded?.Invoke(item, amount);
+    }
+
+    private static ItemSO ResolveItemAmountItem(ItemAmount itemAmount)
+    {
+        if (itemAmount == null)
+            return null;
+
+        if (itemAmount.item != null)
+            return itemAmount.item;
+
+        return ItemDatabase.ResolveFromResources(itemAmount.itemId);
     }
 
     private float GetEffectiveMaxWeight()

@@ -85,7 +85,11 @@ public class RaidManager : MonoBehaviour
 
         List<MissionDefinition> missions = ResolveMissions(location, selectedMission);
         if (objectiveManager != null)
+        {
             objectiveManager.StartObjectives(missions);
+            if (objectiveManager.ShouldActivateExtractionImmediately())
+                ActivateExtractionPoints();
+        }
 
         raidActive = true;
         GameSessionState.SetMode(GameMode.Raid);
