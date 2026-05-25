@@ -1,40 +1,40 @@
 # zombie_rog
 
-`zombie_rog` is a Unity extraction roguelite prototype about singleplayer and future co-op raids from a bunker into infected zombie locations.
+`zombie_rog` — это прототип Unity-игры в жанре extraction roguelite про одиночные и будущие кооперативные вылазки из бункера в заражённые зомби-локации.
 
-## Genre
+## Жанр
 
-Singleplayer/co-op extraction roguelite with survival, looting, shooting, character progression, bunker preparation, and raid extraction.
+Одиночный/кооперативный extraction roguelite с элементами выживания, лута, стрельбы, прокачки персонажа, подготовки в бункере и эвакуации из рейда.
 
-## Idea
+## Идея
 
-The player creates a survivor, prepares in a safe bunker, chooses a dangerous location, completes raid objectives, extracts with loot, receives experience from raid results, and returns to the bunker to save progress and prepare again.
+Игрок создаёт выжившего, готовится в безопасном бункере, выбирает опасную локацию, выполняет задачи вылазки, эвакуируется с лутом, получает опыт по итогам рейда и возвращается в бункер, чтобы сохранить прогресс и подготовиться к следующей вылазке.
 
-## Current Status
+## Текущий статус
 
-The project is in active development. The current milestone is a singleplayer vertical slice:
+Проект находится в активной разработке. Текущая цель — одиночный вертикальный срез:
 
-Bunker -> location selection -> raid -> kill zombies objective -> extraction -> result screen -> experience reward -> save -> return to bunker.
+Бункер -> выбор локации -> рейд -> задача на убийство зомби -> эвакуация -> экран результатов -> награда опытом -> сохранение -> возврат в бункер.
 
-## Implemented Systems
+## Реализованные системы
 
-- Character stats, needs, stamina, health, level fields, stat points, and HUD.
-- Character creation and selected profile persistence.
-- Inventory, world items, loot containers, sorting, inventory UI, and loot container UI.
-- Zombie AI, health, hitboxes, spawning, noise reactions, ragdoll/death support.
-- Shooting with weapon definitions, ammo, hitscan/projectile support, shot effects, and IK hooks.
-- Early co-op layer with session state, gameplay sync, network identity, transforms, menu, and scoreboard.
-- Save system based on Easy Save 3 for players, inventories, containers, world items, zombies, weapons, and saveable scene objects.
+- Характеристики персонажа, потребности, стамина, здоровье, поля уровня, очки характеристик и HUD.
+- Создание персонажа и сохранение выбранного профиля.
+- Инвентарь, предметы в мире, лут-контейнеры, сортировка, UI инвентаря и UI лут-контейнера.
+- ИИ зомби, здоровье, хитбоксы, спавн, реакция на шум, поддержка ragdoll/смерти.
+- Стрельба с определениями оружия, патронами, поддержкой hitscan/projectile, эффектами выстрелов и хуками для IK.
+- Ранний слой кооператива с состоянием сессии, синхронизацией геймплея, сетевой идентификацией, трансформами, меню и таблицей результатов.
+- Система сохранений на основе Easy Save 3 для игроков, инвентарей, контейнеров, предметов в мире, зомби, оружия и сохраняемых объектов сцены.
 
-## Opening the Project
+## Открытие проекта
 
-1. Install a Unity Editor version compatible with URP 14 and the package manifest.
-2. Open the repository folder in Unity Hub.
-3. Let Unity restore packages from `Packages/manifest.json`.
-4. Open `Assets/_Project/Scenes/Main/MainScene.unity` or `Assets/_Project/Scenes/Bunker/Bunker.unity`.
-5. Ensure build settings include `MainScene`, `Bunker`, and the raid scene such as `City`.
+1. Установите версию Unity Editor, совместимую с URP 14 и package manifest проекта.
+2. Откройте папку репозитория через Unity Hub.
+3. Дождитесь, пока Unity восстановит пакеты из `Packages/manifest.json`.
+4. Откройте `Assets/_Project/Scenes/Main/MainScene.unity` или `Assets/_Project/Scenes/Bunker/Bunker.unity`.
+5. Убедитесь, что в Build Settings добавлены `MainScene`, `Bunker` и сцена рейда, например `City`.
 
-## Unity Packages
+## Unity-пакеты
 
 - Cinemachine
 - Input System
@@ -46,19 +46,19 @@ Bunker -> location selection -> raid -> kill zombies objective -> extraction -> 
 - UGUI
 - Unity Test Framework
 - Unity MCP
-- Easy Save 3 plugin in `Assets/Plugins`
+- Плагин Easy Save 3 в `Assets/Plugins`
 
-## Nearest MVP
+## Ближайший MVP
 
-- Bunker manager and terminal.
-- Location and mission ScriptableObject configs.
-- Raid manager with objective tracking.
-- Kill zombies objective.
-- Extraction point activation.
-- Raid result UI.
-- Experience reward through `CharacterProgression`.
-- Progress save after returning to the bunker.
+- Менеджер бункера и терминал.
+- ScriptableObject-конфиги локаций и миссий.
+- Менеджер рейда с отслеживанием задач.
+- Задача на убийство зомби.
+- Активация точки эвакуации.
+- UI результатов рейда.
+- Начисление опыта через `CharacterProgression`.
+- Сохранение прогресса после возврата в бункер.
 
-## Development Warning
+## Предупреждение о разработке
 
-This project is a work in progress. Scenes, prefabs, balance, UI, and co-op behavior may change while the singleplayer vertical slice is being stabilized.
+Проект находится в разработке. Сцены, префабы, баланс, UI и поведение кооператива могут изменяться во время стабилизации одиночного вертикального среза.
