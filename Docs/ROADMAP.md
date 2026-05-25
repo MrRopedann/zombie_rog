@@ -1,53 +1,53 @@
 # Roadmap
 
-## 1. Project Stabilization
+## 1. Стабилизация проекта
 
-Audit existing systems, avoid duplicates, keep scene and prefab references intact, and isolate risky large classes for later refactoring.
+Провести аудит существующих систем, избежать дублирования, сохранить ссылки в сценах и префабах, а также выделить рискованные большие классы для будущего рефакторинга.
 
-## 2. Saves
+## 2. Сохранения
 
-Extend the existing Easy Save 3 based `GameSaveManager` with bunker and location progress while keeping item saves based on `itemID`.
+Расширить существующий `GameSaveManager` на базе Easy Save 3, добавив сохранение прогресса бункера и локаций, при этом оставить сохранение предметов через `itemID`.
 
-## 3. Bunker
+## 3. Бункер
 
-Add bunker manager, storage, terminal, and minimal state data. Later expand into buildable stations and upgrades.
+Добавить менеджер бункера, хранилище, терминал и минимальные данные состояния. Позже расширить систему до размещаемых станций и улучшений.
 
-## 4. Location Selection
+## 4. Выбор локации
 
-Create `LocationDefinition` assets and a temporary UGUI location selection panel opened by the bunker terminal.
+Создать ассеты `LocationDefinition` и временную UGUI-панель выбора локации, которая открывается через терминал в бункере.
 
-## 5. Raid
+## 5. Рейд
 
-Add raid start/completion flow, selected location state, active mission state, raid statistics, and reward calculation.
+Добавить логику начала и завершения рейда, состояние выбранной локации, состояние активной миссии, статистику рейда и расчёт наград.
 
-## 6. Objectives
+## 6. Задачи
 
-Implement the objective framework and the first required objective: kill N zombies.
+Реализовать систему задач и первую обязательную задачу: убить N зомби.
 
-## 7. Extraction
+## 7. Эвакуация
 
-Activate extraction after required objectives are complete. Complete the raid when the player enters the extraction trigger.
+Активировать эвакуацию после выполнения обязательных задач. Завершать рейд, когда игрок входит в триггер эвакуации.
 
-## 8. Result Screen
+## 8. Экран результатов
 
-Show raid stats, success state, earned experience, current level, possible new level, and a continue button.
+Показывать статистику рейда, состояние успеха, полученный опыт, текущий уровень, возможное повышение уровня и кнопку продолжения.
 
-## 9. Progression
+## 9. Прогрессия
 
-Route all experience through `CharacterProgression`, award stat points on level up, and update character HUD through existing events.
+Направить весь получаемый опыт через `CharacterProgression`, выдавать очки характеристик при повышении уровня и обновлять HUD персонажа через уже существующие события.
 
-## 10. Crafting
+## 10. Крафт
 
-Add basic recipes and workbench behavior after the vertical slice is stable.
+Добавить базовые рецепты и поведение верстака после стабилизации вертикального среза.
 
-## 11. Bunker Building
+## 11. Строительство бункера
 
-Add station placement, station upgrades, and bunker persistence.
+Добавить размещение станций, улучшение станций и сохранение состояния бункера.
 
-## 12. Co-op
+## 12. Кооператив
 
-Connect raid state, objectives, extraction, stats, inventory deltas, and rewards to the existing co-op sync layer.
+Подключить состояние рейда, задачи, эвакуацию, статистику, изменения инвентаря и награды к существующему слою синхронизации кооператива.
 
-## 13. Polish
+## 13. Полировка
 
-Improve UI, balance, audio feedback, spawn tuning, mission variety, visual clarity, and persistence edge cases.
+Улучшить UI, баланс, звуковую обратную связь, настройку спавна, разнообразие миссий, визуальную читаемость и обработку нестандартных случаев сохранения.
