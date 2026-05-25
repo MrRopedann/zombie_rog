@@ -1,22 +1,20 @@
 # zombie_rog
 
-`zombie_rog` is a Unity extraction roguelite prototype about singleplayer and future co-op raids from a bunker into infected zombie locations.
+`zombie_rog` — это прототип Unity-игры в жанре extraction roguelite про одиночные и будущие кооперативные вылазки из бункера в заражённые зомби-локации.
 
-## Genre
+## Жанр
 
-Singleplayer/co-op extraction roguelite with survival, looting, shooting, character progression, bunker preparation, and raid extraction.
+Одиночный/кооперативный extraction roguelite с элементами выживания, лута, стрельбы, прокачки персонажа, подготовки в бункере и эвакуации из рейда.
 
-## Idea
+## Идея
 
-The player creates a survivor, prepares in a safe bunker, chooses a dangerous location, completes raid objectives, extracts with loot, receives experience from raid results, and returns to the bunker to save progress and prepare again.
+Игрок создаёт выжившего, готовится в безопасном бункере, выбирает опасную локацию, выполняет задачи вылазки, эвакуируется с лутом, получает опыт по итогам рейда и возвращается в бункер, чтобы сохранить прогресс и подготовиться к следующей вылазке.
 
-## Current Status
+## Текущий статус
 
-The project is in active development. Roadmap items 1-9 are implemented at MVP level and still need regular Unity playtesting:
+The project is in active development. The current milestone is a singleplayer vertical slice:
 
-Bunker -> location selection -> raid -> kill zombies objective -> extraction -> result screen -> experience reward -> save -> return to bunker.
-
-The next active milestone is basic crafting and bunker stations. Full base-building and full co-op raid sync remain future work.
+Бункер -> выбор локации -> рейд -> задача на убийство зомби -> эвакуация -> экран результатов -> награда опытом -> сохранение -> возврат в бункер.
 
 ## Implemented Systems
 
@@ -27,38 +25,14 @@ The next active milestone is basic crafting and bunker stations. Full base-build
 - Shooting with weapon definitions, ammo, hitscan/projectile support, shot effects, and IK hooks.
 - Early co-op layer with session state, gameplay sync, network identity, transforms, menu, and scoreboard.
 - Save system based on Easy Save 3 for players, inventories, containers, world items, zombies, weapons, and saveable scene objects.
-- MVP bunker, location selection, raid manager, objectives, extraction, result UI, reward calculation, and progression save/return.
-- Basic crafting runtime, temporary UGUI crafting UI, starter recipes, and station upgrade scaffolding.
 
-## Opening the Project
+## Открытие проекта
 
-1. Install a Unity Editor version compatible with URP 14 and the package manifest.
-2. Open the repository folder in Unity Hub.
-3. Let Unity restore packages from `Packages/manifest.json`.
-4. Open `Assets/_Project/Scenes/Main/MainScene.unity` or `Assets/_Project/Scenes/Bunker/Bunker.unity`.
-5. Ensure build settings include `MainScene`, `Bunker`, and the raid scene such as `City`.
-
-## Build Settings Scenes
-
-- `Assets/_Project/Scenes/Main/MainScene.unity`
-- `Assets/_Project/Scenes/Bunker/Bunker.unity`
-- `Assets/_Project/Scenes/Locations/City/City.unity`
-
-## Vertical Slice Check
-
-1. Open `Bunker`.
-2. Run `Zombie Rogue/MVP/Create Or Refresh Test Assets` if MVP assets are missing.
-3. Run `Zombie Rogue/MVP/Setup Open Bunker Scene` in the bunker scene.
-4. Open `City` and run `Zombie Rogue/MVP/Setup Open Raid Scene`.
-5. Start from `Bunker`, interact with the terminal, choose `MVP_CityLocation`, start the raid, kill the required zombies, enter extraction, continue from the result screen, and confirm the player returns to `Bunker`.
-
-## Required ScriptableObjects
-
-- `MVP_CityLocation` and `MVP_KillZombies` in `Assets/_Project/Resources/RuntimeLoadedOnly/Data/Raid/`.
-- Starter test locations such as `City Easy`, `City Medium`, `Medical Raid`, and `Test Location` in the same folder.
-- Item assets in `Assets/_Project/Resources/RuntimeLoadedOnly/Data/Item/`.
-- Crafting recipes in `Assets/_Project/Resources/RuntimeLoadedOnly/Data/Crafting/`.
-- Station definitions in `Assets/_Project/Resources/RuntimeLoadedOnly/Data/Bunker/`.
+1. Установите версию Unity Editor, совместимую с URP 14 и package manifest проекта.
+2. Откройте папку репозитория через Unity Hub.
+3. Дождитесь, пока Unity восстановит пакеты из `Packages/manifest.json`.
+4. Откройте `Assets/_Project/Scenes/Main/MainScene.unity` или `Assets/_Project/Scenes/Bunker/Bunker.unity`.
+5. Убедитесь, что в Build Settings добавлены `MainScene`, `Bunker` и сцена рейда, например `City`.
 
 ## Unity Packages
 
@@ -72,22 +46,19 @@ The next active milestone is basic crafting and bunker stations. Full base-build
 - UGUI
 - Unity Test Framework
 - Unity MCP
-- Easy Save 3 plugin in `Assets/Plugins`
+- Плагин Easy Save 3 в `Assets/Plugins`
 
-## In Progress
+## Nearest MVP
 
-- Stabilize the implemented MVP loop in Unity Editor.
-- Wire workbench scene objects to `CraftingStation` and `CraftingUI`.
-- Wire buildable bunker station objects to `BuildableStation`, `StationDefinition`, and `StationUpgradeSystem`.
-- Keep co-op integration limited to events and TODO hooks until singleplayer raid/crafting flow is stable.
+- Bunker manager and terminal.
+- Location and mission ScriptableObject configs.
+- Raid manager with objective tracking.
+- Kill zombies objective.
+- Extraction point activation.
+- Raid result UI.
+- Experience reward through `CharacterProgression`.
+- Progress save after returning to the bunker.
 
-## Known Risks
+## Предупреждение о разработке
 
-- Unity must be opened/refreshed to verify scene references after script moves.
-- The active Unity instance prevents a second batchmode compile on the same project.
-- Runtime-generated UGUI is intentionally temporary.
-- New station definitions have no final world prefabs assigned yet.
-
-## Development Warning
-
-This project is a work in progress. Scenes, prefabs, balance, UI, and co-op behavior may change while the singleplayer vertical slice is being stabilized.
+Проект находится в разработке. Сцены, префабы, баланс, UI и поведение кооператива могут изменяться во время стабилизации одиночного вертикального среза.

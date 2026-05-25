@@ -1,62 +1,52 @@
 # Game Design
 
-## Core Loop
+## Основной игровой цикл
 
-The player starts in the bunker, prepares equipment and inventory, chooses a location, enters a raid, completes objectives, searches for loot, activates extraction, returns to the bunker, receives rewards, and saves progress.
+Игрок начинает в бункере, подготавливает снаряжение и инвентарь, выбирает локацию, отправляется в рейд, выполняет задачи, ищет лут, активирует эвакуацию, возвращается в бункер, получает награды и сохраняет прогресс.
 
-## Bunker
+## Бункер
 
-The bunker is the safe base. It is used for storage, sorting items, preparing loadouts, interacting with terminals, crafting, and later placing or upgrading stations. In the current MVP, the bunker needs a manager, a storage container, a terminal that opens location selection, and early station objects.
-
-## Bunker Stations
-
-Stations are represented by `BuildableStation` and configured with `StationDefinition`. The first station set is Storage, Workbench, Medical Station, Weapon Bench, Generator, and Radio Terminal. The workbench is the first station expected to open `CraftingUI`; the rest are scaffolding for later specialization.
-
-Station save data stores ids, station type text, level, position, rotation, unlock state, and built state. It does not store direct `StationDefinition` references.
+The bunker is the safe base. It is used for storage, sorting items, preparing loadouts, interacting with terminals, and later placing or upgrading stations. In the current MVP, the bunker needs only a manager, a storage container, and a terminal that opens location selection.
 
 ## Raids
 
-A raid is a temporary dangerous session in a selected location. The player enters with current character stats and inventory, completes a required mission, optionally gathers loot, and must extract to keep progress.
+## Награды
 
-## Locations
+Опыт рассчитывается в конце рейда, а не напрямую при смерти зомби.
 
-Locations are configured as `LocationDefinition` ScriptableObjects. Each location has an id, display name, description, scene name, difficulty, recommended level, base experience reward, unlock state, and available missions.
+Базовая формула награждает игрока за:
 
-## Objectives
+- убийства;
+- нанесённый урон;
+- выполненные задачи;
+- возрождения союзников;
+- успешную эвакуацию.
 
-Objectives are configured through `MissionDefinition`. The first MVP objective is `KillZombies`: kill a target number of zombies, then activate extraction. The objective framework now also has hooks for loot, interact, survive, and extract objectives.
+Objectives are configured through `MissionDefinition`. The first MVP objective is `KillZombies`: kill a target number of zombies, then activate extraction. Other planned objective types are loot, interact, survive, and extract.
 
-## Statistics
+## Опыт
 
-Raid statistics track:
+`CharacterProgression` — единственное место, отвечающее за добавление опыта, проверку повышения уровня, выдачу очков характеристик и их трату.
 
-- Zombie kills.
-- Damage dealt.
-- Damage taken.
-- Items looted.
-- Required and optional objectives completed.
-- Allies revived.
-- Raid time.
-- Extraction success.
+`CharacterStats` хранит текущие значения персонажа и пересчитывает производные характеристики.
 
-## Rewards
+## Инвентарь
 
-Experience is calculated at the end of a raid, not directly when a zombie dies. The base formula rewards kills, damage dealt, completed objectives, revives, successful extraction, and applies a location difficulty multiplier.
+Предметы представлены через `ItemSO`.
 
-## Experience
+В данных сохранения хранятся id предметов и количество в стаке, а не прямые ссылки на ScriptableObject.
 
-`CharacterProgression` is the single place responsible for adding experience, checking level ups, awarding stat points, and spending stat points. `CharacterStats` stores current character values and recalculates derived stats.
-
-## Crafting
-
-Crafting is configured through `CraftingRecipe` ScriptableObjects. A recipe has a station type requirement, station level requirement, item ingredients, result item, result amount, craft time, and default unlock flag.
-
-The first implementation is instant crafting. `CraftingSystem` checks resources across `PlayerInventory` and `BunkerStorage`, consumes ingredients, adds the result to player inventory or storage, and returns a `CraftingResult` with a failure reason when crafting cannot happen.
+Лут, собранный во время рейда, остаётся в инвентаре игрока после возвращения в бункер.
 
 ## Inventory
 
-Items are represented by `ItemSO`. Save data stores item ids and stack amounts, not direct ScriptableObject references. Loot taken during a raid remains in the player inventory when returning to the bunker.
+MVP сначала реализуется в одиночном режиме.
 
-## Future Co-op
+Новые системы рейдов должны предоставлять события для будущей синхронизации через `CoopGameplaySync`:
 
-The MVP is singleplayer first. New raid systems expose events for future sync through `CoopGameplaySync`: raid start/completion, extraction activation, objective progress/completion, and per-player stats/rewards.
+- начало рейда;
+- завершение рейда;
+- активация эвакуации;
+- прогресс задач;
+- завершение задач;
+- статистика и награды по каждому игроку.
